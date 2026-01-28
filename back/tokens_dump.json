@@ -1,0 +1,38 @@
+[
+  {
+    "id": "1",
+    "name": "Mohamed Benali",
+    "email": "admin@fiaramotion.com",
+    "token": "fcd2575e299faa5744f1971fd87a5e381058a9545968505484f849468115b5a2"
+  },
+  {
+    "id": "45a288d6-4be4-4e4d-9a88-abed9125ed54",
+    "name": "admin2",
+    "email": "rackoto786@gmail.com",
+    "token": "e6f1651506413c34d2dca9fe449d2170f668780391a32e3166652b0d6aefcdf0"
+  },
+  {
+    "id": "8b9de9e6-1196-449d-ab10-f50be9a34694",
+    "name": "collab1",
+    "email": "collab@fiaramotion.com",
+    "token": "db5c7aecee3f6bf9bff5e86a0cbcc60d3449608a2cd90196ee1d294aaf6ac281"
+  },
+  {
+    "id": "4e20921c-46d6-4e5e-9cfd-77ff09311ab9",
+    "name": "collab3",
+    "email": "collab3@fiaramotion.com",
+    "token": null
+  },
+  {
+    "id": "abc22685-1406-4c54-8a41-1dc59151a12a",
+    "name": "collab2",
+    "email": "collab2@fiaramotion.com",
+    "token": "925dde604c7863fae7f2827908bc48aa55ab4f1b94dba962021fcb27349e25f9"
+  },
+  {
+    "id": "system",
+    "name": "Syst\u00e8me",
+    "email": "system@fiaramotion.com",
+    "token": null
+  }
+]
