@@ -19,12 +19,19 @@ def get_users():
             "avatar": user.avatar,
             "createdAt": user.created_at.isoformat() if user.created_at else None,
             "lastLogin": user.last_login.isoformat() if user.last_login else None,
+            "isOnline": True if user.token else False,
         })
     return jsonify(result), 200
 
 @bp.delete("/<user_id>")
 @token_required
 def delete_user(user_id):
+    from flask import g
+    
+    # Check if current user is admin
+    if not g.user or g.user.role != 'admin':
+        return jsonify({"success": False, "error": "Accès refusé. Seuls les administrateurs peuvent supprimer des utilisateurs."}), 403
+    
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"success": False, "error": "Utilisateur non trouvé"}), 404
@@ -33,21 +40,36 @@ def delete_user(user_id):
         return jsonify({"success": False, "error": "Impossible de supprimer l'administrateur principal"}), 403
 
     try:
-        # Note: We rely on foreign key constraints or manual cleanup if needed.
-        # But for now, simple delete. (The cleanup script showed we might need to handle relations)
-        # Let's handle relations roughly the same way as cleanup script to be safe, 
-        # but since we are in a route, we might want to be more careful.
-        # Ideally, we should soft delete or reassign. 
-        # For this task, we will just delete and let the DB handle it or error if constraint.
-        # If the user asks to "delete demo users", they probably accept data loss on those users.
+        # Import models we need for cleanup
+        from ..models import ActionLog, Maintenance, Mission, Planning, Notification, NotificationRead
         
+        # Clean up all related records before deleting user
+        # 1. Delete action logs created by this user
+        ActionLog.query.filter_by(user_id=user_id).delete()
+        
+        # 2. Update maintenances to set demandeur_id to NULL
+        Maintenance.query.filter_by(demandeur_id=user_id).update({"demandeur_id": None})
+        
+        # 3. Update missions to set created_by_id to NULL
+        Mission.query.filter_by(created_by_id=user_id).update({"created_by_id": None})
+        
+        # 4. Update planning to set created_by_id to NULL
+        Planning.query.filter_by(created_by_id=user_id).update({"created_by_id": None})
+        
+        # 5. Delete notifications targeted to this user
+        Notification.query.filter_by(target_user_id=user_id).delete()
+        
+        # 6. Delete notification read status for this user
+        NotificationRead.query.filter_by(user_id=user_id).delete()
+        
+        # Now we can safely delete the user
         db.session.delete(user)
         db.session.commit()
         
         from ..utils import log_action
         log_action(action="Suppression", entite="Utilisateur", entite_id=user_id, details=f"Suppression de l'utilisateur {user.email}")
         
-        return jsonify({"success": True, "message": "Utilisateur supprimé"}), 200
+        return jsonify({"success": True, "message": "Utilisateur supprimé avec succès"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -55,6 +77,12 @@ def delete_user(user_id):
 @bp.put("/<user_id>/role")
 @token_required
 def update_user_role(user_id):
+    from flask import g
+    
+    # Check if current user is admin
+    if not g.user or g.user.role != 'admin':
+        return jsonify({"success": False, "error": "Accès refusé. Seuls les administrateurs peuvent modifier les rôles."}), 403
+    
     user = db.session.get(User, user_id)
     if not user:
         return jsonify({"success": False, "error": "Utilisateur non trouvé"}), 404

@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/common/DataTable';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Button } from '@/components/ui/button';
-import { Droplets, Plus, Edit, Trash2, Camera, Loader2, Sparkles, Search, CheckCircle2, XCircle, MoreVertical, Gauge, Coins, MapPin, ShieldCheck, Clock, ClipboardList, Filter, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Droplets, Plus, Edit, Trash2, Camera, Loader2, Sparkles, Search, CheckCircle2, XCircle, MoreVertical, Gauge, Coins, MapPin, ShieldCheck, Clock, ClipboardList, Filter, X, Upload, Eye, Calendar, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fuelService } from '@/services/fuelService';
 import { parseFuelTicketText } from '@/lib/ocrUtils';
@@ -17,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +40,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn, formatDateFr } from '@/lib/utils';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { apiClient } from '@/lib/api';
 
 // As requested by user: exact column order and naming
 // Date, Heure, Numero_Ticket, Precedent_KM, Actuel_KM, KM_parcouru, 
@@ -56,22 +59,30 @@ const STATION_OPTIONS = [
 ];
 
 const FuelPage: React.FC = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isOcrDialogOpen, setIsOcrDialogOpen] = useState(false);
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FuelEntry | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<FuelEntry | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   // Filters
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterDate, setFilterDate] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<{ start: string, end: string }>({ start: '', end: '' });
   const [filterHour, setFilterHour] = useState<string>('');
   const [filterStation, setFilterStation] = useState<string>('all');
+  const [filterVehicle, setFilterVehicle] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [amountRange, setAmountRange] = useState<{ min: string, max: string }>({ min: '', max: '' });
 
   const [formData, setFormData] = useState<Partial<FuelEntry>>({
     vehiculeId: '',
-    conducteurId: '',
+    demandeurId: '',
     date: new Date().toISOString().split('T')[0],
     heure: '',
     station: '',
@@ -84,6 +95,7 @@ const FuelPage: React.FC = () => {
 
     // Ticket & Transactions
     numeroTicket: '',
+    ticketImage: '',
     soldeTicket: 0,
     montantRecharge: 0,
     montantRistourne: 0,
@@ -116,27 +128,36 @@ const FuelPage: React.FC = () => {
   const { user } = useAuth();
 
   const { data: fuelEntries = [], isLoading } = useQuery({
-    queryKey: ['fuelEntries', user?.role, user?.email],
-    queryFn: () => fuelService.getAll(user?.role, user?.email),
+    queryKey: ['fuelEntries', user?.role, user?.profileEmail || user?.email, filterStatus],
+    queryFn: () => fuelService.getAll(user?.role, user?.profileEmail || user?.email, filterStatus),
   });
 
-  const { data: vehicles = [] } = useQuery({
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const res = await fetch('http://192.168.1.29:5000/api/vehicles');
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      const res = await apiClient.get<Vehicle[]>('/vehicles');
+      return res.data;
     },
   });
 
-  const { data: drivers = [] } = useQuery({
+  const { data: drivers = [] } = useQuery<Driver[]>({
     queryKey: ['drivers'],
     queryFn: async () => {
-      const res = await fetch('http://192.168.1.29:5000/api/drivers');
-      if (!res.ok) throw new Error('Erreur');
-      return res.json();
+      const res = await apiClient.get<Driver[]>('/drivers');
+      return res.data;
     },
   });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await apiClient.get<User[]>('/users');
+      return res.data;
+    },
+  });
+
+
+
 
   // Calculation Effect
   useEffect(() => {
@@ -270,14 +291,25 @@ const FuelPage: React.FC = () => {
       if (filterType === 'moto' && vType !== 'moto') return false;
     }
 
-    // 3. Date Filter
-    if (filterDate && e.date !== filterDate) return false;
+    // 3. Date Range Filter
+    if (dateRange.start && e.date < dateRange.start) return false;
+    if (dateRange.end && e.date > dateRange.end) return false;
 
     // 4. Hour Filter
     if (filterHour && e.heure && !e.heure.includes(filterHour)) return false;
 
     // 5. Station Filter
     if (filterStation !== 'all' && e.station !== filterStation) return false;
+
+    // 6. Vehicle Filter
+    if (filterVehicle !== 'all' && e.vehiculeId !== filterVehicle) return false;
+
+    // 7. Amount Range Filter (Total Achete)
+    if (amountRange.min && (e.totalAchete || 0) < Number(amountRange.min)) return false;
+    if (amountRange.max && (e.totalAchete || 0) > Number(amountRange.max)) return false;
+
+    // 8. Status Filter (Client-side fallback)
+    if (filterStatus !== 'all' && e.statut !== filterStatus) return false;
 
     return true;
   });
@@ -295,6 +327,51 @@ const FuelPage: React.FC = () => {
     { label: "Total des demandes", value: totalCount.toString(), icon: ClipboardList, variant: "primary" as const, subtitle: "Historique" },
   ];
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const errors: string[] = [];
+
+    // Validation des champs obligatoires
+    if (!formData.vehiculeId) errors.push("Véhicule");
+    if (!formData.demandeurId) errors.push("Demandeur");
+    if (!formData.date) errors.push("Date");
+    if (!formData.heure) errors.push("Heure");
+    if (!formData.station) errors.push("Station");
+    if (!formData.numeroTicket) errors.push("N° Ticket");
+
+    // Validation des montants et kilométrage
+    if (!formData.actuelKm) errors.push("Kilométrage Actuel");
+    if (!formData.prixUnitaire || formData.prixUnitaire <= 0) errors.push("Prix Unitaire");
+    if (!formData.totalAchete || formData.totalAchete <= 0) errors.push("Total Acheté");
+
+    // Champs financiers
+    if (formData.ancienSolde === undefined || formData.ancienSolde === null) errors.push("Ancien Solde");
+    if (formData.soldeTicket === undefined || formData.soldeTicket === null) errors.push("Solde Ticket");
+
+    if (errors.length > 0) {
+      toast({
+        title: "Champs obligatoires manquants",
+        description: `Veuillez remplir : ${errors.join(', ')}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    saveMutation.mutate(formData);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, ticketImage: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-card/40 backdrop-blur-md p-4 rounded-2xl border border-border/50">
@@ -303,7 +380,11 @@ const FuelPage: React.FC = () => {
           <Button variant="outline" onClick={() => setIsOcrDialogOpen(true)} className="gap-2 border-primary/20 text-primary hover:bg-primary/5 dark:bg-zinc-900/50">
             <Sparkles className="h-4 w-4" /> Saisie Rapide (IA)
           </Button>
-          <Button onClick={() => { setEditingEntry(null); setIsDialogOpen(true); }} className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+          <Button onClick={() => {
+            setEditingEntry(null);
+            setFormData(prev => ({ ...prev, demandeurId: user?.id }));
+            setIsDialogOpen(true);
+          }} className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
             <Plus className="h-4 w-4" /> Nouvelle entrée
           </Button>
         </div>
@@ -334,20 +415,31 @@ const FuelPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {(user?.role === 'admin' || user?.role === 'technician') && (
+            <Button
+              onClick={() => navigate('/fuel/year-end')}
+              variant="outline"
+              className="rounded-full border-primary/20 gap-2 px-4 h-10 bg-gradient-to-r from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/15 backdrop-blur-sm transition-all"
+            >
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-primary">Solde Fin d'Année</span>
+            </Button>
+          )}
+
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   "rounded-full border-primary/10 gap-2 px-4 h-10 bg-background/50 backdrop-blur-sm transition-all hover:border-primary/30",
-                  (filterType !== 'all' || filterDate !== '' || filterHour !== '' || filterStation !== 'all') && "bg-primary/5 border-primary/20"
+                  (filterType !== 'all' || filterStatus !== 'all' || dateRange.start !== '' || dateRange.end !== '' || filterHour !== '' || filterStation !== 'all' || filterVehicle !== 'all' || amountRange.min !== '' || amountRange.max !== '') && "bg-primary/5 border-primary/20"
                 )}
               >
                 <Filter className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium">Filtrer</span>
-                {(filterType !== 'all' || filterDate !== '' || filterHour !== '' || filterStation !== 'all') && (
+                {(filterType !== 'all' || filterStatus !== 'all' || dateRange.start !== '' || dateRange.end !== '' || filterHour !== '' || filterStation !== 'all' || filterVehicle !== 'all' || amountRange.min !== '' || amountRange.max !== '') && (
                   <Badge variant="default" className="ml-1 h-5 min-w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-primary text-white border-none">
-                    {(filterType !== 'all' ? 1 : 0) + (filterDate !== '' ? 1 : 0) + (filterHour !== '' ? 1 : 0) + (filterStation !== 'all' ? 1 : 0)}
+                    {(filterType !== 'all' ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0) + (dateRange.start !== '' || dateRange.end !== '' ? 1 : 0) + (filterHour !== '' ? 1 : 0) + (filterStation !== 'all' ? 1 : 0) + (filterVehicle !== 'all' ? 1 : 0) + (amountRange.min !== '' || amountRange.max !== '' ? 1 : 0)}
                   </Badge>
                 )}
               </Button>
@@ -356,15 +448,18 @@ const FuelPage: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
                   <h4 className="font-semibold text-sm">Filtres Carburant</h4>
-                  {(filterType !== 'all' || filterDate !== '' || filterHour !== '' || filterStation !== 'all') && (
+                  {(filterType !== 'all' || filterStatus !== 'all' || dateRange.start !== '' || dateRange.end !== '' || filterHour !== '' || filterStation !== 'all' || filterVehicle !== 'all') && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         setFilterType('all');
-                        setFilterDate('');
+                        setFilterStatus('all');
+                        setDateRange({ start: '', end: '' });
                         setFilterHour('');
                         setFilterStation('all');
+                        setFilterVehicle('all');
+                        setAmountRange({ min: '', max: '' });
                       }}
                       className="h-8 px-2 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
@@ -374,29 +469,56 @@ const FuelPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-4 pt-1">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Type de véhicule</Label>
-                    <Select value={filterType} onValueChange={setFilterType}>
-                      <SelectTrigger className="h-9 bg-muted/20 border-border/50 rounded-lg">
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tous les types</SelectItem>
-                        <SelectItem value="voiture">Voitures</SelectItem>
-                        <SelectItem value="moto">Motos</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Type de véhicule</Label>
+                      <Select value={filterType} onValueChange={setFilterType}>
+                        <SelectTrigger className="h-9 bg-muted/20 border-border/50 rounded-lg">
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous les types</SelectItem>
+                          <SelectItem value="voiture">Voitures</SelectItem>
+                          <SelectItem value="moto">Motos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Statut de validation</Label>
+                      <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="h-9 bg-muted/20 border-border/50 rounded-lg">
+                          <SelectValue placeholder="Statut" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous les statuts</SelectItem>
+                          <SelectItem value="en_attente">En attente</SelectItem>
+                          <SelectItem value="valide">Validé</SelectItem>
+                          <SelectItem value="rejete">Rejeté</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Date</Label>
-                      <Input
-                        type="date"
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
-                        className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs"
-                      />
+                    <div className="space-y-2 col-span-2">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Période (Début - Fin)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="date"
+                          value={dateRange.start}
+                          onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                          className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs"
+                          placeholder="Début"
+                        />
+                        <Input
+                          type="date"
+                          value={dateRange.end}
+                          onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                          className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs"
+                          placeholder="Fin"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Heure</Label>
@@ -423,20 +545,60 @@ const FuelPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Montant (Min - Max)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={amountRange.min}
+                        onChange={(e) => setAmountRange(prev => ({ ...prev, min: e.target.value }))}
+                        className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs"
+                        placeholder="Min (Ar)"
+                      />
+                      <Input
+                        type="number"
+                        value={amountRange.max}
+                        onChange={(e) => setAmountRange(prev => ({ ...prev, max: e.target.value }))}
+                        className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs"
+                        placeholder="Max (Ar)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-0.5">Véhicule</Label>
+                    <Select value={filterVehicle} onValueChange={setFilterVehicle}>
+                      <SelectTrigger className="h-9 bg-muted/20 border-border/50 rounded-lg text-xs">
+                        <SelectValue placeholder="Choisir un véhicule" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les véhicules</SelectItem>
+                        {vehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id} className="text-xs">
+                            {v.immatriculation} ({v.marque})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </PopoverContent>
           </Popover>
 
-          {(filterType !== 'all' || filterDate !== '' || filterHour !== '' || filterStation !== 'all') && (
+          {(filterType !== 'all' || filterStatus !== 'all' || dateRange.start !== '' || dateRange.end !== '' || filterHour !== '' || filterStation !== 'all' || filterVehicle !== 'all') && (
             <Button
               variant="ghost"
               size="icon"
               onClick={() => {
                 setFilterType('all');
-                setFilterDate('');
+                setFilterStatus('all');
+                setDateRange({ start: '', end: '' });
                 setFilterHour('');
                 setFilterStation('all');
+                setFilterVehicle('all');
+                setAmountRange({ min: '', max: '' });
                 setSearch('');
               }}
               className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -450,54 +612,54 @@ const FuelPage: React.FC = () => {
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <ScrollArea className="w-full h-[calc(100vh-20rem)] border rounded-md">
           <table className="w-full border-collapse text-xs min-w-[2800px]">
-            <thead className="sticky top-0 z-30 bg-background shadow-sm">
+            <thead className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm shadow-md">
               {/* Row 1: Grouped Headers */}
-              <tr>
-                <th colSpan={3} className="border-b border-r bg-slate-100 dark:bg-slate-800 p-2 font-black text-slate-700 dark:text-slate-200">Informations de base et identification du ticket</th>
-                <th colSpan={6} className="border-b border-r bg-blue-50 dark:bg-blue-900/30 p-2 font-black text-blue-700 dark:text-blue-300">Données kilométriques et distance</th>
-                <th colSpan={11} className="border-b border-r bg-green-50 dark:bg-green-900/30 p-2 font-black text-green-700 dark:text-green-300">Gestion financière et coûts</th>
-                <th colSpan={3} className="border-b border-r bg-slate-50 dark:bg-slate-900/50 p-2 font-black text-slate-600 dark:text-slate-400">Gestion des quantités et du réservoir</th>
-                <th colSpan={3} className="border-b border-r bg-amber-50 dark:bg-amber-900/30 p-2 font-black text-amber-700 dark:text-amber-300">Indicateurs de performance et alertes</th>
-                <th rowSpan={2} className="border-b bg-muted/50 p-2 sticky right-0 z-10 backdrop-blur-md">Actions</th>
+              <tr className="border-b-2 border-border/60">
+                <th colSpan={3} className="border-r border-border/40 bg-gradient-to-br from-slate-50 to-slate-100/80 dark:from-slate-800/80 dark:to-slate-700/60 p-3 font-black text-[10px] uppercase tracking-wider text-slate-700 dark:text-slate-200 shadow-sm">Informations de base et identification du ticket</th>
+                <th colSpan={6} className="border-r border-border/40 bg-gradient-to-br from-blue-50 to-blue-100/70 dark:from-blue-900/40 dark:to-blue-800/30 p-3 font-black text-[10px] uppercase tracking-wider text-blue-700 dark:text-blue-300 shadow-sm">Données kilométriques et distance</th>
+                <th colSpan={11} className="border-r border-border/40 bg-gradient-to-br from-emerald-50 to-emerald-100/70 dark:from-emerald-900/40 dark:to-emerald-800/30 p-3 font-black text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 shadow-sm">Gestion financière et coûts</th>
+                <th colSpan={3} className="border-r border-border/40 bg-gradient-to-br from-slate-50 to-slate-100/60 dark:from-slate-900/60 dark:to-slate-800/40 p-3 font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 shadow-sm">Gestion des quantités et du réservoir</th>
+                <th colSpan={4} className="border-r border-border/40 bg-gradient-to-br from-amber-50 to-amber-100/70 dark:from-amber-900/40 dark:to-amber-800/30 p-3 font-black text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 shadow-sm">Indicateurs de performance et alertes</th>
+                <th rowSpan={2} className="border-l-2 border-border/60 bg-gradient-to-b from-background via-background/95 to-muted/20 sticky right-0 z-40 p-3 font-black text-[10px] uppercase tracking-widest text-primary shadow-lg">Actions</th>
               </tr>
               {/* Row 2: Specific Columns */}
-              <tr className="bg-muted/30">
+              <tr className="bg-gradient-to-b from-muted/30 to-muted/50 border-b border-border/40">
                 {/* Base Info */}
-                <th className="border-b border-r p-2 font-semibold">Date</th>
-                <th className="border-b border-r p-2 font-semibold">Heure</th>
-                <th className="border-b border-r p-2 font-semibold">N° Ticket</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Date</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Heure</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">N° Ticket</th>
 
                 {/* KM Data */}
-                <th className="border-b border-r p-2 font-semibold">Précédent KM</th>
-                <th className="border-b border-r p-2 font-semibold">Actuel KM</th>
-                <th className="border-b border-r p-2 font-semibold">KM parcouru</th>
-                <th className="border-b border-r p-2 font-semibold">Distance possible QTEacheter (km)</th>
-                <th className="border-b border-r p-2 font-semibold">Distance possible QTErestant (km)</th>
-                <th className="border-b border-r p-2 font-semibold text-blue-600 dark:text-blue-400">Source d'energie P.U Ar/L</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Précédent KM</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Actuel KM</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">KM parcouru</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Distance possible QTEacheter (km)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Distance possible QTErestant (km)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-blue-600 dark:text-blue-400">Source d'energie P.U Ar/L</th>
 
                 {/* Financial */}
-                <th className="border-b border-r p-2 font-semibold">Ancien Solde</th>
-                <th className="border-b border-r p-2 font-semibold">Solde inscrit sur le Ticket</th>
-                <th className="border-b border-r p-2 font-semibold whitespace-normal">Différence Solde inscrit sur le Ticket / Ancien Solde</th>
-                <th className="border-b border-r p-2 font-semibold">Montant recharger</th>
-                <th className="border-b border-r p-2 font-semibold">Montant ristourne</th>
-                <th className="border-b border-r p-2 font-semibold">Bonus sur recharge carte</th>
-                <th className="border-b border-r p-2 font-semibold">Total Acheter (Montant total de l'achat)</th>
-                <th className="border-b border-r p-2 font-semibold">Montant transaction annuler</th>
-                <th className="border-b border-r p-2 font-semibold">Coût au Km</th>
-                <th className="border-b border-r p-2 font-semibold">Nouveau Solde</th>
-                <th className="border-b border-r p-2 font-semibold whitespace-normal">QTErestant (Quantité restante dans la carte)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Ancien Solde</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Solde inscrit sur le Ticket</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground whitespace-normal">Différence Solde inscrit sur le Ticket / Ancien Solde</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Montant recharger</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Montant ristourne</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Bonus sur recharge carte</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Total Acheter (Montant total de l'achat)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Montant transaction annuler</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Coût au Km</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Nouveau Solde</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground whitespace-normal">QTErestant (Quantité restante dans la carte)</th>
 
                 {/* Quantities */}
-                <th className="border-b border-r p-2 font-semibold">QTErecharger</th>
-                <th className="border-b border-r p-2 font-semibold">QTEacheter</th>
-                <th className="border-b border-r p-2 font-semibold">Capacité de réservoir (L)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">QTErecharger</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">QTEacheter</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Capacité de réservoir (L)</th>
 
                 {/* Performance */}
-                <th className="border-b border-r p-2 font-semibold">Statut carburant</th>
-                <th className="border-b border-r p-2 font-semibold">Validation</th>
-                <th className="border-b border-r p-2 font-semibold">Alerte</th>
-                <th className="border-b p-2 font-semibold">Consommation (L/100 km)</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Statut carburant</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Validation</th>
+                <th className="border-r border-border/30 p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Alerte</th>
+                <th className="p-2.5 font-bold text-[10px] uppercase tracking-wide text-muted-foreground">Consommation (L/100 km)</th>
               </tr>
             </thead>
             <tbody>
@@ -507,64 +669,89 @@ const FuelPage: React.FC = () => {
                 <tr><td colSpan={28} className="p-8 text-center text-muted-foreground">Aucune donnée trouvée</td></tr>
               ) : (
                 filteredEntries.map((e) => (
-                  <tr key={e.id} className="hover:bg-muted/10 transition-colors border-b last:border-0 text-center">
+                  <tr key={e.id} className="group hover:bg-gradient-to-r hover:from-primary/5 hover:via-primary/3 hover:to-transparent transition-all duration-300 border-b border-border/20 last:border-0 text-center hover:shadow-sm">
                     {/* Base Info */}
-                    <td className="border-r p-2">{formatDateFr(e.date)}</td>
-                    <td className="border-r p-2">{e.heure || '-'}</td>
-                    <td className="border-r p-2 font-medium">{e.numeroTicket || '-'}</td>
+                    <td className="border-r border-border/20 p-3 text-foreground/90 font-medium">{formatDateFr(e.date)}</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.heure || '-'}</td>
+                    <td className="border-r border-border/20 p-3 font-semibold text-primary">{e.numeroTicket || '-'}</td>
 
                     {/* KM Data */}
-                    <td className="border-r p-2">{e.precedentKm?.toLocaleString()}</td>
-                    <td className="border-r p-2">{e.actuelKm?.toLocaleString()}</td>
-                    <td className="border-r p-2 bg-blue-500/5 font-bold">{e.kmParcouru?.toLocaleString()}</td>
-                    <td className="border-r p-2">{e.distancePossible?.toFixed(0)}</td>
-                    <td className="border-r p-2">{e.distancePossibleRestant?.toFixed(0)}</td>
-                    <td className="border-r p-2 text-right">{e.prixUnitaire?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-foreground/80">{e.precedentKm?.toLocaleString()}</td>
+                    <td className="border-r border-border/20 p-3 text-foreground/80">{e.actuelKm?.toLocaleString()}</td>
+                    <td className="border-r border-border/20 p-3 bg-blue-50/30 dark:bg-blue-900/10 font-bold text-blue-700 dark:text-blue-400">{e.kmParcouru?.toLocaleString()}</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.distancePossible?.toFixed(0)}</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.distancePossibleRestant?.toFixed(0)}</td>
+                    <td className="border-r border-border/20 p-3 text-right font-semibold text-foreground/90">{e.prixUnitaire?.toLocaleString()} Ar</td>
 
                     {/* Financial */}
-                    <td className="border-r p-2 text-right">{e.ancienSolde?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right">{e.soldeTicket?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right font-semibold" style={{ color: (e.differenceSolde || 0) < 0 ? 'red' : 'inherit' }}>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.ancienSolde?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.soldeTicket?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right font-semibold" style={{ color: (e.differenceSolde || 0) < 0 ? 'rgb(239 68 68)' : 'inherit' }}>
                       {e.differenceSolde?.toLocaleString()} Ar
                     </td>
-                    <td className="border-r p-2 text-right">{e.montantRecharge?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right">{e.montantRistourne?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right">{e.bonus?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right bg-green-500/5 font-bold">{e.totalAchete?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2 text-right">{e.montantTransactionAnnuler?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2">{e.coutAuKm?.toFixed(3)}</td>
-                    <td className="border-r p-2 text-right font-bold text-blue-600 dark:text-blue-400">{e.nouveauSolde?.toLocaleString()} Ar</td>
-                    <td className="border-r p-2">{e.quantiteRestante?.toFixed(2)} L</td>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.montantRecharge?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.montantRistourne?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.bonus?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right bg-emerald-50/30 dark:bg-emerald-900/10 font-bold text-emerald-700 dark:text-emerald-400">{e.totalAchete?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-right text-muted-foreground">{e.montantTransactionAnnuler?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.coutAuKm?.toFixed(3)}</td>
+                    <td className="border-r border-border/20 p-3 text-right font-bold text-blue-600 dark:text-blue-400">{e.nouveauSolde?.toLocaleString()} Ar</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.quantiteRestante?.toFixed(2)} L</td>
 
                     {/* Quantities */}
-                    <td className="border-r p-2">{e.quantiteRechargee?.toFixed(2)} L</td>
-                    <td className="border-r p-2">{e.quantiteAchetee?.toFixed(2)} L</td>
-                    <td className="border-r p-2">{e.capaciteReservoir || '-'}</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.quantiteRechargee?.toFixed(2)} L</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.quantiteAchetee?.toFixed(2)} L</td>
+                    <td className="border-r border-border/20 p-3 text-muted-foreground">{e.capaciteReservoir || '-'}</td>
 
                     {/* Performance */}
-                    <td className="border-r p-2">
-                      <Badge variant={e.statut_carburant === 'Dépassement' ? 'destructive' : 'outline'} className="text-[10px] scale-90">
-                        {e.statut_carburant || 'Normal'}
+                    <td className="border-r border-border/20 p-3">
+                      <Badge
+                        variant={e.statut_carburant === 'Dépassement' ? 'destructive' : 'outline'}
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 font-bold border-none",
+                          e.statut_carburant === 'Dépassement'
+                            ? "bg-red-500 text-white shadow-sm shadow-red-200 dark:shadow-red-900/30"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                        )}
+                      >
+                        {e.statut_carburant === 'Dépassement' ? 'Dépassement' : 'Normal'}
                       </Badge>
                     </td>
-                    <td className="border-r p-2">
-                      <Badge variant={e.statut === 'valide' ? 'default' : 'outline'} className="text-[10px] scale-90">
-                        {e.statut}
-                      </Badge>
+                    <td className="border-r border-border/20 p-3">
+                      {e.statut === 'valide' ? (
+                        <Badge className="bg-green-500 hover:bg-green-600 text-white border-none shadow-sm shadow-green-200 dark:shadow-green-900/30 text-[10px] gap-1 px-2 py-0.5">
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Validé</span>
+                        </Badge>
+                      ) : e.statut === 'rejete' ? (
+                        <Badge variant="destructive" className="text-[10px] gap-1 px-2 py-0.5 shadow-sm shadow-red-200 dark:shadow-red-900/30 border-none">
+                          <XCircle className="h-3 w-3" />
+                          <span>Rejeté</span>
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
+                          <Clock className="h-3 w-3" />
+                          <span>En attente</span>
+                        </Badge>
+                      )}
                     </td>
-                    <td className="border-r p-2 italic text-muted-foreground">{e.alerte || '-'}</td>
-                    <td className="p-2 font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">{e.consommation100?.toFixed(2)}</td>
+                    <td className="border-r border-border/20 p-3 italic text-muted-foreground">{e.alerte || '-'}</td>
+                    <td className="p-3 font-bold bg-amber-50/30 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400">{e.consommation100?.toFixed(2)}</td>
 
-                    {/* Actions */}
-                    <td className="sticky right-0 bg-background/95 backdrop-blur-sm border-l p-1 z-10 w-[50px]">
-                      <div className="flex justify-center">
+                    <td className="sticky right-0 bg-background/95 backdrop-blur-sm border-l-2 border-border/40 p-2 z-10 w-[60px] shadow-[-6px_0_8px_-2px_rgba(0,0,0,0.08)]">
+                      <div className="flex justify-center items-center h-full">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all duration-300">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => { setViewingEntry(e); setIsDetailsDialogOpen(true); }}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              <span>Détails</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             {(user?.role === 'admin' || user?.role === 'technician') && e.statut === 'en_attente' && (
                               <>
                                 <DropdownMenuItem onClick={() => statusMutation.mutate({ id: e.id, status: 'valide' })} className="text-green-600 focus:text-green-700 focus:bg-green-50">
@@ -718,10 +905,13 @@ const FuelPage: React.FC = () => {
                   <Droplets className="h-5 w-5 text-blue-600" />
                   {editingEntry ? 'Modifier l\'entrée carburant' : 'Enregistrer une nouvelle transaction'}
                 </DialogTitle>
+                <DialogDescription>
+                  Remplissez le formulaire ci-dessous pour {editingEntry ? 'modifier' : 'ajouter'} une entrée.
+                </DialogDescription>
               </DialogHeader>
 
               <div className="flex-1 overflow-y-scroll premium-scrollbar pr-1 max-h-[calc(96vh-120px)] bg-slate-50/30 dark:bg-zinc-900/10">
-                <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(formData); }} className="space-y-12 p-8">
+                <form onSubmit={handleSubmit} className="space-y-12 p-8">
 
                   {/* --- Section 1: Identification --- */}
                   <div id="section-base" className="space-y-4 scroll-mt-10">
@@ -734,9 +924,40 @@ const FuelPage: React.FC = () => {
                           <SelectContent>
                             {vehicles
                               .filter((v: any) => {
-                                if (user?.role !== 'collaborator') return true;
-                                const currentDriver = drivers?.find((d: any) => d.email.toLowerCase() === user?.email.toLowerCase());
-                                return v.id === currentDriver?.vehiculeAssigne;
+                                // Admin, Technician, and Direction see all vehicles
+                                if (user?.role !== 'collaborator' && user?.role !== 'driver') return true;
+
+                                // For collaborators and drivers, try to find their driver profile
+                                const userEmail = (user?.email || '').toLowerCase();
+                                const profileEmail = (user?.profileEmail || '').toLowerCase();
+                                const userName = (user?.name || '').toLowerCase();
+
+                                const currentDriver = drivers?.find((d: any) => {
+                                  const driverEmail = (d.email || '').toLowerCase();
+                                  const driverFullName = `${d.nom} ${d.prenom}`.toLowerCase();
+                                  return driverEmail === userEmail ||
+                                    driverEmail === profileEmail ||
+                                    driverFullName.includes(userName) ||
+                                    userName.includes(d.nom.toLowerCase());
+                                });
+
+                                // Fallback: if no specific driver profile is found for a collaborator/driver,
+                                // allow them to see all vehicles so they aren't blocked, 
+                                // but prioritize their assigned one if found.
+                                if (!currentDriver) return true;
+
+                                // Bidirectional check: 
+                                // 1. Driver has vehicle assigned (vehiculeAssigne)
+                                // 2. Vehicle has driver assigned (conducteur_id)
+                                const isAssigned = v.id === currentDriver.vehiculeAssigne || v.conducteur_id === currentDriver.id;
+
+                                // If the driver HAS an assignment, only show that assignment.
+                                // If they exist but have NO assignment yet, show all to let them pick.
+                                if (currentDriver.vehiculeAssigne || v.conducteur_id === currentDriver.id) {
+                                  return isAssigned;
+                                }
+
+                                return true;
                               })
                               .map((v: any) => <SelectItem key={v.id} value={v.id}>{v.immatriculation} ({v.marque})</SelectItem>)
                             }
@@ -744,18 +965,17 @@ const FuelPage: React.FC = () => {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="dark:text-zinc-400">Conducteur *</Label>
+                        <Label className="dark:text-zinc-400">Demandeur *</Label>
                         <Select
-                          value={formData.conducteurId}
-                          onValueChange={v => setFormData({ ...formData, conducteurId: v })}
-                          disabled={user?.role === 'collaborator'}
+                          value={formData.demandeurId}
+                          onValueChange={v => setFormData({ ...formData, demandeurId: v })}
+                          disabled={user?.role === 'collaborator' || user?.role === 'driver'}
                         >
                           <SelectTrigger className="dark:bg-zinc-800/50 border-border/50"><SelectValue placeholder="Choisir" /></SelectTrigger>
                           <SelectContent>
-                            {drivers
-                              .filter((d: any) => user?.role !== 'collaborator' || d.email.toLowerCase() === user?.email.toLowerCase())
-                              .map((d: any) => <SelectItem key={d.id} value={d.id}>{d.nom} {d.prenom}</SelectItem>)
-                            }
+                            {users.map((u: any) => (
+                              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -781,11 +1001,49 @@ const FuelPage: React.FC = () => {
                       </div>
                       <div className="space-y-2">
                         <Label className="dark:text-zinc-400">N° Ticket</Label>
-                        <Input placeholder="T-0000" className="dark:bg-zinc-800/50" value={formData.numeroTicket} onChange={e => setFormData({ ...formData, numeroTicket: e.target.value })} />
+                        <Input placeholder="T-0000" className="dark:bg-zinc-800/50" value={formData.numeroTicket}
+                          onChange={(e) => setFormData({ ...formData, numeroTicket: e.target.value })}
+                          placeholder="ex: T-12345"
+                        />
                       </div>
+
                       <div className="space-y-2">
                         <Label className="text-blue-700 dark:text-blue-500 font-semibold">Solde inscrit sur le Ticket</Label>
                         <Input type="number" step="any" className="dark:bg-zinc-800/50" value={formData.soldeTicket} onChange={e => setFormData({ ...formData, soldeTicket: Number(e.target.value) })} />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 p-4 border border-dashed border-border rounded-xl bg-muted/5">
+                      <Label htmlFor="ticketImage" className="block mb-2 font-medium">Photo du Ticket (Preuve)</Label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative flex-1">
+                          <Input
+                            id="ticketImage"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 h-12 pt-2"
+                          />
+                        </div>
+                        {formData.ticketImage && (
+                          <div className="relative h-20 w-20 shrink-0 rounded-lg overflow-hidden border border-border shadow-md select-none group">
+                            <img
+                              src={formData.ticketImage}
+                              alt="Ticket"
+                              className="h-full w-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(formData.ticketImage || null)}
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                              onClick={() => setFormData({ ...formData, ticketImage: '' })}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -947,7 +1205,272 @@ const FuelPage: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6 bg-background/95 backdrop-blur-xl border-border shadow-2xl rounded-2xl">
+          <DialogHeader className="mb-6 border-b pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <Eye className="h-6 w-6" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold">Détails de la Transaction</DialogTitle>
+                  <DialogDescription>Récapitulatif complet de l'entrée carburant</DialogDescription>
+                </div>
+              </div>
+              {viewingEntry && (
+                <Badge variant={viewingEntry.statut === 'valide' ? 'default' : viewingEntry.statut === 'rejete' ? 'destructive' : 'outline'} className="h-7 px-4">
+                  {viewingEntry.statut.toUpperCase()}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {viewingEntry && (
+            <div className="space-y-8">
+              {/* Section 1: Informations de base */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <ClipboardList className="h-3 w-3" /> Informations de base
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Date</p>
+                      <p className="font-semibold">{formatDateFr(viewingEntry.date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Heure</p>
+                      <p className="font-semibold">{viewingEntry.heure || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">N° Ticket</p>
+                      <p className="font-semibold text-primary">{viewingEntry.numeroTicket || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Station</p>
+                      <p className="font-semibold">{viewingEntry.station || '-'}</p>
+                    </div>
+                  </div>
+                  {viewingEntry.ticketImage && (
+                    <div className="mt-4">
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">Image du Ticket</p>
+                      <div className="rounded-lg overflow-hidden border border-border/50 max-w-xs">
+                        <img
+                          src={viewingEntry.ticketImage}
+                          alt="Ticket"
+                          className="w-full h-auto object-contain max-h-48 cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setPreviewImage(viewingEntry.ticketImage || null)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <MapPin className="h-3 w-3" /> Véhicule & Demandeur
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Véhicule</p>
+                      <p className="font-semibold">
+                        {vehicles.find(v => v.id === viewingEntry.vehiculeId)?.immatriculation || 'Non spécifié'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Demandeur</p>
+                      <p className="font-semibold">
+                        {users.find(u => u.id === viewingEntry.demandeurId)?.name || 'Non spécifié'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Type</p>
+                      <p className="font-semibold">
+                        {vehicles.find(v => v.id === viewingEntry.vehiculeId)?.type_vehicule || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase font-medium">Produit</p>
+                      <p className="font-semibold">{viewingEntry.produit}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Données kilométriques */}
+              <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/10 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                  <Gauge className="h-3 w-3" /> Données kilométriques & Distances
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+                  <div className="bg-background/50 p-2 rounded-md">
+                    <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">Précédent KM</p>
+                    <p className="text-lg font-bold">{viewingEntry.precedentKm?.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-background/50 p-2 rounded-md border border-blue-200 dark:border-blue-900 shadow-sm">
+                    <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">Actuel KM</p>
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{viewingEntry.actuelKm?.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-blue-600/10 p-2 rounded-md">
+                    <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 uppercase font-medium mb-1">KM Parcouru</p>
+                    <p className="text-lg font-black text-blue-700 dark:text-blue-300">{viewingEntry.kmParcouru?.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-background/50 p-2 rounded-md">
+                    <p className="text-[10px] text-muted-foreground uppercase font-medium mb-1">P.U (Ar/L)</p>
+                    <p className="text-lg font-bold">{viewingEntry.prixUnitaire?.toLocaleString()} Ar</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/50">
+                    <span className="text-xs text-muted-foreground">Distance possible (QTE achetée)</span>
+                    <span className="font-bold">{viewingEntry.distancePossible?.toFixed(0)} km</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/10">
+                    <span className="text-xs text-primary/70">Distance possible (QTE restante)</span>
+                    <span className="font-bold text-primary">{viewingEntry.distancePossibleRestant?.toFixed(0)} km</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Gestion Financière */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Coins className="h-3 w-3" /> Gestion Financière
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between border-b pb-1">
+                      <span className="text-xs text-muted-foreground">Ancien Solde</span>
+                      <span className="text-sm font-medium">{viewingEntry.ancienSolde?.toLocaleString()} Ar</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-1">
+                      <span className="text-xs text-muted-foreground">Solde Ticket</span>
+                      <span className="text-sm font-medium">{viewingEntry.soldeTicket?.toLocaleString()} Ar</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Différence Solde</span>
+                      <span className={cn("text-sm font-bold", (viewingEntry.differenceSolde || 0) < 0 ? "text-red-500" : "text-green-500")}>
+                        {viewingEntry.differenceSolde?.toLocaleString()} Ar
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between border-b pb-1">
+                      <span className="text-xs text-muted-foreground">Montant Rechargé</span>
+                      <span className="text-sm font-medium">{viewingEntry.montantRecharge?.toLocaleString()} Ar</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-1">
+                      <span className="text-xs text-muted-foreground">Ristourne</span>
+                      <span className="text-sm font-medium">{viewingEntry.montantRistourne?.toLocaleString()} Ar</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-muted-foreground">Bonus</span>
+                      <span className="text-sm font-medium">{viewingEntry.bonus?.toLocaleString()} Ar</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-muted/30 rounded-xl space-y-4 text-center border-2 border-primary/20 bg-primary/5">
+                    <div>
+                      <p className="text-[10px] text-primary/70 uppercase font-black tracking-widest mb-1">Nouveau Solde</p>
+                      <p className="text-2xl font-black text-primary">{viewingEntry.nouveauSolde?.toLocaleString()} <span className="text-xs">Ar</span></p>
+                    </div>
+                    <div className="pt-2 border-t border-primary/10">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Coût au KM</p>
+                      <p className="text-sm font-bold">{viewingEntry.coutAuKm?.toFixed(3)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Volumes & Performance */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Volumes (L)</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-muted/20 border rounded-lg text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">QTE Rechargée</p>
+                      <p className="font-bold">{viewingEntry.quantiteRechargee?.toFixed(2)} L</p>
+                    </div>
+                    <div className="p-3 bg-green-500/5 border border-green-500/20 rounded-lg text-center">
+                      <p className="text-[10px] text-green-600/70 dark:text-green-400/70 uppercase mb-1">QTE Achetée</p>
+                      <p className="font-bold text-green-600 dark:text-green-400">{viewingEntry.quantiteAchetee?.toFixed(2)} L</p>
+                    </div>
+                    <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg text-center">
+                      <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 uppercase mb-1">QTE Restante</p>
+                      <p className="font-bold text-blue-600 dark:text-blue-400">{viewingEntry.quantiteRestante?.toFixed(2)} L</p>
+                    </div>
+                    <div className="p-3 bg-muted/20 border rounded-lg text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Capacité</p>
+                      <p className="font-bold">{viewingEntry.capaciteReservoir || '-'} L</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck className="h-3 w-3" /> Performance & Alertes
+                  </h3>
+                  <div className="h-full flex flex-col gap-4">
+                    <div className="flex-1 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-col items-center justify-center">
+                      <p className="text-[10px] text-amber-600 uppercase font-black tracking-widest mb-1">Consommation L/100km</p>
+                      <p className="text-3xl font-black text-amber-500">{viewingEntry.consommation100?.toFixed(2)}</p>
+                    </div>
+                    {viewingEntry.alerte && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-center">
+                        <p className="text-[10px] text-red-600 uppercase font-bold mb-1 italic">Alerte</p>
+                        <p className="text-xs text-red-500 font-medium">{viewingEntry.alerte}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 pt-6 border-t flex justify-end gap-3">
+            {viewingEntry && (
+              <Button
+                variant="outline"
+                size="lg"
+                className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
+                onClick={() => {
+                  // Open the PDF in a new tab/window which triggers download
+                  window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/fuel/${viewingEntry.id}/pdf`, '_blank');
+                }}
+              >
+                <Upload className="h-4 w-4 rotate-180" />
+                Exporter PDF
+              </Button>
+            )}
+            <Button size="lg" className="px-12 rounded-full font-bold shadow-xl shadow-primary/20" onClick={() => setIsDetailsDialogOpen(false)}>
+              Fermer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Year-End Balance Modal */}
+      {/* Image Preview Modal */}
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black/90 border-none shadow-2xl">
+          <div className="relative w-full h-full flex items-center justify-center p-4">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-2 right-2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors z-50"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            {previewImage && (
+              <img
+                src={previewImage}
+                alt="Aperçu Ticket"
+                className="max-w-full max-h-[90vh] object-contain rounded-md"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 };
 

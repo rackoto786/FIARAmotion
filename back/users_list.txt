@@ -1,0 +1,4 @@
+Found 3 users.
+ID: 50d74e39-79d3-4146-a838-9be81d8c66b9, Email: pcr04536, Name: rakoto, Role: collaborator, Password Hash: scrypt:327
+ID: c8047d01-0a45-44c7-9d86-1363a683acea, Email: rackoto786@gmail.com, Name: Administrateur, Role: admin, Password Hash: scrypt:327
+ID: 6b68f0ca-3089-4b5f-9cfe-4a8619366bb5, Email: pcr0007, Name: nary, Role: collaborator, Password Hash: scrypt:327

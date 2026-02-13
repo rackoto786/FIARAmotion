@@ -3,6 +3,7 @@ from flask import render_template_string, current_app
 from threading import Thread
 from .. import mail, db
 from ..models import User
+from datetime import datetime
 
 def send_email_async(msg):
     """Send email asynchronously in a background thread to avoid blocking HTTP response."""
@@ -20,7 +21,7 @@ def send_email_async(msg):
 def send_maintenance_alert(maintenance, vehicle):
     """Notify technicians and admins about a new maintenance request."""
     # Find active technicians and admins
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     
     if not recipients:
         return
@@ -34,7 +35,7 @@ def send_maintenance_alert(maintenance, vehicle):
         <li><b>Véhicule :</b> {vehicle.immatriculation} ({vehicle.marque} {vehicle.modele})</li>
         <li><b>Type :</b> {maintenance.type}</li>
         <li><b>Description :</b> {maintenance.description}</li>
-        <li><b>Date prévue :</b> {maintenance.date}</li>
+        <li><b>Date prévue :</b> {maintenance.date_prevue}</li>
     </ul>
     <p>Veuillez vous connecter à l'application pour valider ou rejeter cette demande.</p>
     """
@@ -46,7 +47,7 @@ def send_maintenance_alert(maintenance, vehicle):
 
 def send_status_update_notification(maintenance, vehicle):
     """Notify the requester about the status change (accepted/rejected)."""
-    recipient = maintenance.demandeur.email
+    recipient = maintenance.demandeur.profile_email
     if not recipient:
         return
 
@@ -73,7 +74,7 @@ def send_status_update_notification(maintenance, vehicle):
 
 def send_mileage_limit_alert(vehicle, alert_type, current_km, threshold_km):
     """Notify admins/technicians when a vehicle exceeds its mileage threshold for maintenance."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -111,7 +112,7 @@ def send_mileage_limit_alert(vehicle, alert_type, current_km, threshold_km):
 
 def send_planning_creation_alert(planning, vehicle):
     """Notify admins/technicians about a new planning reservation."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -139,10 +140,10 @@ def send_planning_creation_alert(planning, vehicle):
 
 def send_planning_status_notification(planning, vehicle):
     """Notify the creator about the planning status change."""
-    if not planning.created_by or not planning.created_by.email:
+    if not planning.created_by or not planning.created_by.profile_email:
         return
 
-    recipient = planning.created_by.email
+    recipient = planning.created_by.profile_email
     status_label = "Acceptée" if planning.status == 'acceptee' else "Rejetée" if planning.status == 'rejetee' else planning.status
     color = "green" if planning.status == 'acceptee' else "red" if planning.status == 'rejetee' else "gray"
     
@@ -165,7 +166,7 @@ def send_planning_status_notification(planning, vehicle):
 
 def send_mission_creation_alert(mission, vehicle):
     """Notify admins/technicians about a new mission."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -190,7 +191,7 @@ def send_mission_creation_alert(mission, vehicle):
 
 def send_mission_status_notification(mission, vehicle):
     """Notify admins/technicians about a mission status update."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -212,7 +213,7 @@ def send_mission_status_notification(mission, vehicle):
 
 def send_fuel_creation_alert(fuel_entry, vehicle):
     """Notify admins and technicians about a new fuel entry."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -238,7 +239,7 @@ def send_fuel_creation_alert(fuel_entry, vehicle):
 
 def send_reminder_alert(request_type, request_obj, vehicle):
     """Send a reminder email for a pending request."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -254,7 +255,7 @@ def send_reminder_alert(request_type, request_obj, vehicle):
         date_val = request_obj.date_debut
     elif request_type == "Maintenance":
         details = f"<li><b>Type :</b> {request_obj.type}</li><li><b>Description :</b> {request_obj.description}</li>"
-        date_val = request_obj.date
+        date_val = request_obj.date_prevue
     else:
         date_val = "N/A"
 
@@ -274,8 +275,8 @@ def send_reminder_alert(request_type, request_obj, vehicle):
     send_email_async(msg)
 
 def send_document_expiry_alert(compliance, vehicle):
-    """Notify admins/technicians about a document expiring in 2 days."""
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    """Notify admins/technicians about a document expiring in 5 days."""
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     if not recipients:
         return
 
@@ -324,7 +325,7 @@ def send_document_expiry_alert(compliance, vehicle):
 def send_abnormal_fuel_alert(fuel_entry, vehicle, driver_name):
     """Notify admins and technicians about an abnormal fuel transaction."""
     print("DEBUG: Inside send_abnormal_fuel_alert")
-    recipients = [u.email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all()]
+    recipients = [u.profile_email for u in User.query.filter(User.role.in_(['admin', 'technician'])).all() if u.profile_email]
     print(f"DEBUG: Found {len(recipients)} recipients: {recipients}")
     if not recipients:
         print("DEBUG: No recipients found, exiting.")

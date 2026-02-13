@@ -63,6 +63,14 @@ export const VehicleStatusBadge: React.FC<VehicleStatusBadgeProps> = ({ vehicle,
             variant = 'success';
             label = 'En Service';
             break;
+        case 'disponible':
+            variant = 'success';
+            label = 'Disponible';
+            break;
+        case 'sur_terrain':
+            variant = 'info';
+            label = 'Sur terrain';
+            break;
         case 'en_maintenance':
             variant = 'warning';
             label = 'En Maintenance';

@@ -22,8 +22,10 @@ import {
     Building2,
     FileText,
     Pencil,
-    Trash2
+    Trash2,
+    Wrench
 } from 'lucide-react';
+import { PeriodicMaintenance } from '@/components/compliance/PeriodicMaintenance';
 import {
     Card,
     CardContent,
@@ -254,16 +256,37 @@ const CompliancePage = () => {
         }).length
     };
 
+    const [activeTab, setActiveTab] = useState<'documents' | 'maintenance'>('documents');
+
     return (
-        <div className="p-6 space-y-8 animate-in fade-in duration-700">
+        <div className="p-6 space-y-8 animate-in fade-in duration-700 h-full flex flex-col">
             {/* Header section with Glassmorphism */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                 <div className="space-y-1">
-                    <h1 className="text-4xl font-extrabold tracking-tight gradient-text">Gestion des Échéances</h1>
+                    <h1 className="text-4xl font-extrabold tracking-tight gradient-text">Gestion de la Conformité</h1>
                     <p className="text-muted-foreground flex items-center gap-2">
                         <Shield className="h-4 w-4 text-primary" />
-                        Suivi professionnel de la conformité légale de votre parc
+                        Suivi des échéances légales et de l'entretien périodique
                     </p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-muted/30 p-1 rounded-full border border-white/5">
+                    <Button
+                        variant={activeTab === 'documents' ? 'secondary' : 'ghost'}
+                        onClick={() => setActiveTab('documents')}
+                        className="rounded-full px-6"
+                    >
+                        <FileCheck className="h-4 w-4 mr-2" />
+                        Documents & Taxes
+                    </Button>
+                    <Button
+                        variant={activeTab === 'maintenance' ? 'secondary' : 'ghost'}
+                        onClick={() => setActiveTab('maintenance')}
+                        className="rounded-full px-6"
+                    >
+                        <Wrench className="h-4 w-4 mr-2" />
+                        Entretien Périodique
+                    </Button>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -276,351 +299,359 @@ const CompliancePage = () => {
                         <Zap className="h-4 w-4 text-primary" />
                     </Button>
 
-                    <Dialog open={isDialogOpen} onOpenChange={(open) => {
-                        setIsDialogOpen(open);
-                        if (!open) resetForm();
-                    }}>
-                        <DialogTrigger asChild>
-                            <Button className="rounded-full shadow-glow gap-2 pl-4 pr-5 transition-all hover:scale-105 active:scale-95 bg-primary">
-                                <Plus className="h-5 w-5" />
-                                <span className="font-semibold">Nouvelle Échéance</span>
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[500px] border-primary/20 bg-background/95 backdrop-blur-xl">
-                            <DialogHeader>
-                                <DialogTitle className="text-2xl gradient-text">{isEditing ? "Modifier l'échéance" : "Ajouter un document"}</DialogTitle>
-                                <CardDescription>{isEditing ? "Mettez à jour les informations du document." : "Enregistrez un nouveau titre de transport ou assurance."}</CardDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="vehicle">Véhicule</Label>
-                                        <Select value={formData.vehiculeId} onValueChange={(v) => setFormData({ ...formData, vehiculeId: v })}>
-                                            <SelectTrigger className="bg-muted/50 border-primary/10">
-                                                <SelectValue placeholder="Sélectionner..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {vehicles.map(v => (
-                                                    <SelectItem key={v.id} value={v.id}>{v.immatriculation} - {v.marque}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                    {activeTab === 'documents' && (
+                        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                            setIsDialogOpen(open);
+                            if (!open) resetForm();
+                        }}>
+                            <DialogTrigger asChild>
+                                <Button className="rounded-full shadow-glow gap-2 pl-4 pr-5 transition-all hover:scale-105 active:scale-95 bg-primary">
+                                    <Plus className="h-5 w-5" />
+                                    <span className="font-semibold">Nouvelle Échéance</span>
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px] border-primary/20 bg-background/95 backdrop-blur-xl">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl gradient-text">{isEditing ? "Modifier l'échéance" : "Ajouter un document"}</DialogTitle>
+                                    <CardDescription>{isEditing ? "Mettez à jour les informations du document." : "Enregistrez un nouveau titre de transport ou assurance."}</CardDescription>
+                                </DialogHeader>
+                                <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="vehicle">Véhicule</Label>
+                                            <Select value={formData.vehiculeId} onValueChange={(v) => setFormData({ ...formData, vehiculeId: v })}>
+                                                <SelectTrigger className="bg-muted/50 border-primary/10">
+                                                    <SelectValue placeholder="Sélectionner..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {vehicles.map(v => (
+                                                        <SelectItem key={v.id} value={v.id}>{v.immatriculation} - {v.marque}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="type">Type de document</Label>
+                                            <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as any })}>
+                                                <SelectTrigger className="bg-muted/50 border-primary/10">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {COMPLIANCE_TYPES.map(t => (
+                                                        <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="type">Type de document</Label>
-                                        <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as any })}>
-                                            <SelectTrigger className="bg-muted/50 border-primary/10">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {COMPLIANCE_TYPES.map(t => (
-                                                    <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="expiry">Date d'expiration</Label>
-                                        <div className="relative">
-                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="expiry">Date d'expiration</Label>
+                                            <div className="relative">
+                                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    id="expiry"
+                                                    type="date"
+                                                    value={formData.dateExpiration}
+                                                    className="pl-10 bg-muted/50 border-primary/10"
+                                                    onChange={(e) => setFormData({ ...formData, dateExpiration: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="docNum">Numéro de document</Label>
                                             <Input
-                                                id="expiry"
-                                                type="date"
-                                                value={formData.dateExpiration}
-                                                className="pl-10 bg-muted/50 border-primary/10"
-                                                onChange={(e) => setFormData({ ...formData, dateExpiration: e.target.value })}
+                                                id="docNum"
+                                                value={formData.numeroDocument}
+                                                placeholder="Ex: POL-2024-X"
+                                                className="bg-muted/50 border-primary/10"
+                                                onChange={(e) => setFormData({ ...formData, numeroDocument: e.target.value })}
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="docNum">Numéro de document</Label>
-                                        <Input
-                                            id="docNum"
-                                            value={formData.numeroDocument}
-                                            placeholder="Ex: POL-2024-X"
-                                            className="bg-muted/50 border-primary/10"
-                                            onChange={(e) => setFormData({ ...formData, numeroDocument: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="cost">Coût (MGA)</Label>
-                                        <Input
-                                            id="cost"
-                                            type="number"
-                                            value={formData.cout}
-                                            placeholder="0.00"
-                                            className="bg-muted/50 border-primary/10"
-                                            onChange={(e) => setFormData({ ...formData, cout: parseFloat(e.target.value) })}
-                                        />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cost">Coût (MGA)</Label>
+                                            <Input
+                                                id="cost"
+                                                type="number"
+                                                value={formData.cout}
+                                                placeholder="0.00"
+                                                className="bg-muted/50 border-primary/10"
+                                                onChange={(e) => setFormData({ ...formData, cout: parseFloat(e.target.value) })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="provider">Prestataire</Label>
+                                            <Input
+                                                id="provider"
+                                                value={formData.prestataire}
+                                                placeholder="Ex: ARO SA"
+                                                className="bg-muted/50 border-primary/10"
+                                                onChange={(e) => setFormData({ ...formData, prestataire: e.target.value })}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="provider">Prestataire</Label>
-                                        <Input
-                                            id="provider"
-                                            value={formData.prestataire}
-                                            placeholder="Ex: ARO SA"
-                                            className="bg-muted/50 border-primary/10"
-                                            onChange={(e) => setFormData({ ...formData, prestataire: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
 
-                                <DialogFooter className="pt-4">
-                                    <Button type="submit" className="w-full shadow-glow">
-                                        {isEditing ? "Mettre à jour" : "Enregistrer"}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
+                                    <DialogFooter className="pt-4">
+                                        <Button type="submit" className="w-full shadow-glow">
+                                            {isEditing ? "Mettre à jour" : "Enregistrer"}
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard
-                    title="Total Documents"
-                    value={stats.total.toString()}
-                    subtitle="Tous les titres"
-                    icon={FileText}
-                    variant="primary"
-                />
-                <StatsCard
-                    title="Expirés"
-                    value={stats.expired.toString()}
-                    subtitle="Action immédiate"
-                    icon={AlertTriangle}
-                    variant="danger"
-                />
-                <StatsCard
-                    title="À renouveler"
-                    value={stats.upcoming.toString()}
-                    subtitle="Sous 30 jours"
-                    icon={Clock}
-                    variant="warning"
-                />
-                <StatsCard
-                    title="Valides"
-                    value={stats.valid.toString()}
-                    subtitle="Conformité OK"
-                    icon={CheckCircle2}
-                    variant="success"
-                />
-            </div>
-
-            {/* Main Table Section */}
-            <Card className="glass-card border-primary/5 shadow-2xl overflow-hidden">
-                <CardHeader className="p-6 border-b border-white/5 bg-white/2">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <CardTitle className="text-xl">État de la flotte</CardTitle>
-                            <CardDescription>Liste exhaustive des documents légaux par véhicule.</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-3 w-full md:w-auto">
-                            <div className="relative flex-1 md:w-64">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Rechercher un véhicule..."
-                                    className="pl-10 bg-muted/30 border-primary/5 focus:border-primary/20 transition-all rounded-full"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" size="sm" className={cn(
-                                            "rounded-full border-primary/10 gap-2 px-4 h-10",
-                                            (filterType !== 'all' || filterStatus !== 'all') && "bg-primary/5 border-primary/20"
-                                        )}>
-                                            <Filter className="h-4 w-4 text-primary" />
-                                            <span className="text-sm font-medium">Filtrer</span>
-                                            {(filterType !== 'all' || filterStatus !== 'all') && (
-                                                <Badge variant="glow" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
-                                                    {(filterType !== 'all' ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0)}
-                                                </Badge>
-                                            )}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-4 border-primary/10 bg-background/95 backdrop-blur-xl" align="end">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="font-semibold leading-none">Filtres</h4>
-                                                {(filterType !== 'all' || filterStatus !== 'all') && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => { setFilterType('all'); setFilterStatus('all'); }}
-                                                        className="h-8 pr-2 pl-2 text-xs text-muted-foreground hover:text-primary"
-                                                    >
-                                                        Effacer
-                                                    </Button>
-                                                )}
-                                            </div>
-                                            <div className="space-y-3 pt-2">
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-semibold uppercase opacity-50">Type de document</Label>
-                                                    <Select value={filterType} onValueChange={setFilterType}>
-                                                        <SelectTrigger className="h-9 bg-muted/30 border-primary/5">
-                                                            <SelectValue placeholder="Tous les types" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="all">Tous les types</SelectItem>
-                                                            {COMPLIANCE_TYPES.map(t => (
-                                                                <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-semibold uppercase opacity-50">Statut</Label>
-                                                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                                        <SelectTrigger className="h-9 bg-muted/30 border-primary/5">
-                                                            <SelectValue placeholder="Tous les statuts" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="all">Tous les statuts</SelectItem>
-                                                            <SelectItem value="valide">Valide</SelectItem>
-                                                            <SelectItem value="renouveler">À renouveler</SelectItem>
-                                                            <SelectItem value="expire">Expiré</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-
-                                {(filterType !== 'all' || filterStatus !== 'all') && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => { setFilterType('all'); setFilterStatus('all'); }}
-                                        className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
+            {activeTab === 'documents' ? (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 flex-shrink-0">
+                        <StatsCard
+                            title="Total Documents"
+                            value={stats.total.toString()}
+                            subtitle="Tous les titres"
+                            icon={FileText}
+                            variant="primary"
+                        />
+                        <StatsCard
+                            title="Expirés"
+                            value={stats.expired.toString()}
+                            subtitle="Action immédiate"
+                            icon={AlertTriangle}
+                            variant="danger"
+                        />
+                        <StatsCard
+                            title="À renouveler"
+                            value={stats.upcoming.toString()}
+                            subtitle="Sous 30 jours"
+                            icon={Clock}
+                            variant="warning"
+                        />
+                        <StatsCard
+                            title="Valides"
+                            value={stats.valid.toString()}
+                            subtitle="Conformité OK"
+                            icon={CheckCircle2}
+                            variant="success"
+                        />
                     </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader className="bg-muted/20">
-                            <TableRow className="hover:bg-transparent border-white/5">
-                                <TableHead className="w-[200px] pl-6">Véhicule</TableHead>
-                                <TableHead>Type de document</TableHead>
-                                <TableHead>N° Document</TableHead>
-                                <TableHead>Expiration</TableHead>
-                                <TableHead>Statut</TableHead>
-                                <TableHead className="text-right">Coût (MGA)</TableHead>
-                                <TableHead className="text-right pr-6">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                Array(5).fill(0).map((_, i) => (
-                                    <TableRow key={i} className="animate-pulse border-white/5">
-                                        {Array(7).fill(0).map((_, j) => (
-                                            <TableCell key={j}><div className="h-4 bg-muted/30 rounded w-full" /></TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : filteredEntries.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        Aucune échéance trouvée.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredEntries.map((e) => (
-                                    <TableRow key={e.id} className="hover:bg-white/5 transition-colors border-white/5 group">
-                                        <TableCell className="font-semibold text-foreground pl-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-xs text-primary font-bold">
-                                                    {e.vehicule_immatriculation.substring(0, 2)}
+
+                    {/* Main Table Section */}
+                    <Card className="glass-card border-primary/5 shadow-2xl overflow-hidden flex-1">
+                        <CardHeader className="p-6 border-b border-white/5 bg-white/2">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-xl">État de la flotte</CardTitle>
+                                    <CardDescription>Liste exhaustive des documents légaux par véhicule.</CardDescription>
+                                </div>
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <div className="relative flex-1 md:w-64">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Rechercher un véhicule..."
+                                            className="pl-10 bg-muted/30 border-primary/5 focus:border-primary/20 transition-all rounded-full"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" size="sm" className={cn(
+                                                    "rounded-full border-primary/10 gap-2 px-4 h-10",
+                                                    (filterType !== 'all' || filterStatus !== 'all') && "bg-primary/5 border-primary/20"
+                                                )}>
+                                                    <Filter className="h-4 w-4 text-primary" />
+                                                    <span className="text-sm font-medium">Filtrer</span>
+                                                    {(filterType !== 'all' || filterStatus !== 'all') && (
+                                                        <Badge variant="glow" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
+                                                            {(filterType !== 'all' ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0)}
+                                                        </Badge>
+                                                    )}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-80 p-4 border-primary/10 bg-background/95 backdrop-blur-xl" align="end">
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <h4 className="font-semibold leading-none">Filtres</h4>
+                                                        {(filterType !== 'all' || filterStatus !== 'all') && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => { setFilterType('all'); setFilterStatus('all'); }}
+                                                                className="h-8 pr-2 pl-2 text-xs text-muted-foreground hover:text-primary"
+                                                            >
+                                                                Effacer
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-3 pt-2">
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs font-semibold uppercase opacity-50">Type de document</Label>
+                                                            <Select value={filterType} onValueChange={setFilterType}>
+                                                                <SelectTrigger className="h-9 bg-muted/30 border-primary/5">
+                                                                    <SelectValue placeholder="Tous les types" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="all">Tous les types</SelectItem>
+                                                                    {COMPLIANCE_TYPES.map(t => (
+                                                                        <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs font-semibold uppercase opacity-50">Statut</Label>
+                                                            <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                                                <SelectTrigger className="h-9 bg-muted/30 border-primary/5">
+                                                                    <SelectValue placeholder="Tous les statuts" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="all">Tous les statuts</SelectItem>
+                                                                    <SelectItem value="valide">Valide</SelectItem>
+                                                                    <SelectItem value="renouveler">À renouveler</SelectItem>
+                                                                    <SelectItem value="expire">Expiré</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                {e.vehicule_immatriculation}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                {(() => {
-                                                    const typeData = COMPLIANCE_TYPES.find(t => t.id === e.type) || COMPLIANCE_TYPES[0];
-                                                    return (
-                                                        <>
-                                                            <div className={cn("p-1.5 rounded-md", typeData.bg)}>
-                                                                <typeData.icon className={cn("h-3.5 w-3.5", typeData.color)} />
-                                                            </div>
-                                                            <span className="text-sm">{typeData.label}</span>
-                                                        </>
-                                                    )
-                                                })()}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="font-mono text-xs opacity-70 group-hover:opacity-100 transition-opacity">
-                                            {e.numeroDocument || "---"}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                                <span className="text-sm">{format(new Date(e.dateExpiration), 'dd MMM yyyy', { locale: fr })}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{getStatusBadge(e.dateExpiration)}</TableCell>
-                                        <TableCell className="text-right font-semibold font-mono text-primary">
-                                            {new Intl.NumberFormat('fr-MG', { style: 'currency', currency: 'MGA' }).format(e.cout)}
-                                        </TableCell>
-                                        <TableCell className="text-right pr-6">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-40 border-primary/10">
-                                                    <DropdownMenuItem onClick={() => handleEditOpen(e)} className="gap-2">
-                                                        <Pencil className="h-4 w-4" />
-                                                        Modifier
-                                                    </DropdownMenuItem>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 text-destructive">
-                                                                <Trash2 className="h-4 w-4" />
-                                                                Supprimer
-                                                            </DropdownMenuItem>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent className="border-destructive/20 bg-background/95 backdrop-blur-xl">
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    Cette action supprimera définitivement cette échéance de la base de données.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel className="rounded-full">Annuler</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleDelete(e.id)} className="bg-destructive hover:bg-destructive/90 rounded-full">
-                                                                    Supprimer
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        {(filterType !== 'all' || filterStatus !== 'all') && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => { setFilterType('all'); setFilterStatus('all'); }}
+                                                className="h-8 w-8 rounded-full text-muted-foreground hover:text-destructive"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader className="bg-muted/20">
+                                    <TableRow className="hover:bg-transparent border-white/5">
+                                        <TableHead className="w-[200px] pl-6">Véhicule</TableHead>
+                                        <TableHead>Type de document</TableHead>
+                                        <TableHead>N° Document</TableHead>
+                                        <TableHead>Expiration</TableHead>
+                                        <TableHead>Statut</TableHead>
+                                        <TableHead className="text-right">Coût (MGA)</TableHead>
+                                        <TableHead className="text-right pr-6">Actions</TableHead>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        Array(5).fill(0).map((_, i) => (
+                                            <TableRow key={i} className="animate-pulse border-white/5">
+                                                {Array(7).fill(0).map((_, j) => (
+                                                    <TableCell key={j}><div className="h-4 bg-muted/30 rounded w-full" /></TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))
+                                    ) : filteredEntries.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                                Aucune échéance trouvée.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        filteredEntries.map((e) => (
+                                            <TableRow key={e.id} className="hover:bg-white/5 transition-colors border-white/5 group">
+                                                <TableCell className="font-semibold text-foreground pl-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-xs text-primary font-bold">
+                                                            {e.vehicule_immatriculation.substring(0, 2)}
+                                                        </div>
+                                                        {e.vehicule_immatriculation}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        {(() => {
+                                                            const typeData = COMPLIANCE_TYPES.find(t => t.id === e.type) || COMPLIANCE_TYPES[0];
+                                                            return (
+                                                                <>
+                                                                    <div className={cn("p-1.5 rounded-md", typeData.bg)}>
+                                                                        <typeData.icon className={cn("h-3.5 w-3.5", typeData.color)} />
+                                                                    </div>
+                                                                    <span className="text-sm">{typeData.label}</span>
+                                                                </>
+                                                            )
+                                                        })()}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="font-mono text-xs opacity-70 group-hover:opacity-100 transition-opacity">
+                                                    {e.numeroDocument || "---"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span className="text-sm">{format(new Date(e.dateExpiration), 'dd MMM yyyy', { locale: fr })}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{getStatusBadge(e.dateExpiration)}</TableCell>
+                                                <TableCell className="text-right font-semibold font-mono text-primary">
+                                                    {new Intl.NumberFormat('fr-MG', { style: 'currency', currency: 'MGA' }).format(e.cout)}
+                                                </TableCell>
+                                                <TableCell className="text-right pr-6">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-40 border-primary/10">
+                                                            <DropdownMenuItem onClick={() => handleEditOpen(e)} className="gap-2">
+                                                                <Pencil className="h-4 w-4" />
+                                                                Modifier
+                                                            </DropdownMenuItem>
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 text-destructive">
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                        Supprimer
+                                                                    </DropdownMenuItem>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent className="border-destructive/20 bg-background/95 backdrop-blur-xl">
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            Cette action supprimera définitivement cette échéance de la base de données.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel className="rounded-full">Annuler</AlertDialogCancel>
+                                                                        <AlertDialogAction onClick={() => handleDelete(e.id)} className="bg-destructive hover:bg-destructive/90 rounded-full">
+                                                                            Supprimer
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </>
+            ) : (
+                <PeriodicMaintenance vehicles={vehicles} onRefresh={fetchData} />
+            )}
         </div>
     );
 };

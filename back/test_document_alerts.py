@@ -18,10 +18,10 @@ with app.app_context():
     # Get first vehicle
     vehicle = Vehicle.query.first()
     if not vehicle:
-        print("❌ No vehicles found in database")
+        print("[ERROR] No vehicles found in database")
         exit(1)
     
-    print(f"\n✅ Using vehicle: {vehicle.immatriculation}")
+    print(f"\n[OK] Using vehicle: {vehicle.immatriculation}")
     
     # Create test compliance entry expiring in 2 days
     expiry_date = (datetime.now() + timedelta(days=2)).date()
@@ -43,32 +43,31 @@ with app.app_context():
     db.session.add(test_compliance)
     db.session.commit()
     
-    print(f"✅ Created test compliance entry")
+    print(f"[OK] Created test compliance entry")
     print(f"   Type: {test_compliance.type}")
     print(f"   Expiration: {expiry_date.strftime('%d/%m/%Y')}")
     print(f"   ID: {test_compliance.id}")
     
     # Trigger alert check
-    print(f"\n🔔 Triggering alert check...")
+    print(f"\n[ALERT] Triggering alert check...")
     count = check_expiring_documents(app)
     
-    print(f"\n✅ Alert check completed")
+    print(f"\n[OK] Alert check completed")
     print(f"   Alerts sent: {count}")
     
     # Verify the entry was updated
     db.session.refresh(test_compliance)
     
-    print(f"\n🔍 Verification:")
+    print(f"\n[DEBUG] Verification:")
     print(f"   Alert sent flag: {test_compliance.expiry_alert_sent}")
     print(f"   Alert sent at: {test_compliance.expiry_alert_sent_at}")
     
     # Clean up
-    print(f"\n🗑️  Cleaning up test entry...")
+    print(f"\n[CLEANUP] Cleaning up test entry...")
     db.session.delete(test_compliance)
     db.session.commit()
     
     print("\n" + "="*60)
-    print("✅ TEST COMPLETED SUCCESSFULLY!")
-    print("="*60)
-    print("\n📧 Check your email (admin/technician accounts) for the alert.")
-    print("📱 Check in-app notifications in the application.")
+    print("[OK] TEST COMPLETED SUCCESSFULLY!")
+    print("\n[INFO] Check your email (admin/technician accounts) for the alert.")
+    print("[INFO] Check in-app notifications in the application.")

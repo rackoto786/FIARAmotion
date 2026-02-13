@@ -44,6 +44,7 @@ import { userService } from '@/services/users';
 import { logsService, Log } from '@/services/logs';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import UserSessionLogsModal from '@/components/logs/UserSessionLogsModal';
 
 import { EditUserDialog } from '@/components/users/EditUserDialog';
 import { differenceInHours } from 'date-fns';
@@ -55,6 +56,8 @@ const Settings: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userModalOpen, setUserModalOpen] = useState(false);
 
   // Redirect non-admin users
   useEffect(() => {
@@ -311,6 +314,9 @@ const Settings: React.FC = () => {
                           <Button variant="ghost" size="icon" onClick={() => setEditingUser(user)} title="Modifier l'utilisateur">
                             <Edit className="h-4 w-4" />
                           </Button>
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedUserId(user.id); setUserModalOpen(true); }} title="Voir ses actions">
+                            Voir ses actions
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -318,7 +324,7 @@ const Settings: React.FC = () => {
                               setLogFilters(prev => ({ ...prev, userId: user.id }));
                               document.querySelector('[value="logs"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                             }}
-                            title="Voir l'historique des actions"
+                            title="Aller aux logs"
                           >
                             <Activity className="h-4 w-4" />
                           </Button>
@@ -623,11 +629,14 @@ const Settings: React.FC = () => {
                           <div className="flex items-center gap-2 mb-1">
                             <span
                               className="font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
-                              onClick={() => setLogFilters(prev => ({ ...prev, userId: log.userId }))}
-                              title={`Voir toutes les actions de ${user?.name}`}
+                              onClick={() => { setLogFilters(prev => ({ ...prev, userId: log.userId })); }}
+                              title={`Filtrer par ${user?.name}`}
                             >
                               {user?.name || "Utilisateur inconnu"}
                             </span>
+                            <Button variant="outline" size="sm" className="ml-2" onClick={() => { setSelectedUserId(log.userId); setUserModalOpen(true); }}>
+                              Voir ses actions
+                            </Button>
                             <Badge variant="outline" className="text-xs">
                               {log.action}
                             </Badge>
@@ -649,6 +658,11 @@ const Settings: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+        <UserSessionLogsModal
+          userId={selectedUserId}
+          open={userModalOpen}
+          onOpenChange={(o) => { setUserModalOpen(o); if (!o) setSelectedUserId(null); }}
+        />
     </div >
   );
 };

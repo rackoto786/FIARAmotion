@@ -36,6 +36,7 @@ const statusConfigs: Record<StatusType, StatusConfig> = {
   termine: { label: 'Terminé', variant: 'success' },
   annule: { label: 'Annulé', variant: 'destructive' },
   rejeter: { label: 'Rejetée', variant: 'destructive' },
+  archive: { label: 'Archivée', variant: 'success' },
 
   // Driver status
   actif: { label: 'Actif', variant: 'success' },

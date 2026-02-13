@@ -45,6 +45,7 @@ import { toast } from '@/hooks/use-toast';
 import { ImageUpload } from '@/components/common/ImageUpload';
 import { MaintenanceRecapTable } from '@/components/vehicles/MaintenanceRecapTable';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { apiClient } from '@/lib/api';
 
 
 // Initial form state matching the new Vehicle interface
@@ -109,19 +110,16 @@ const Vehicles: React.FC = () => {
   const { data: vehicles = [], isLoading, isError } = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/vehicles');
-      if (!res.ok) {
-        throw new Error('Erreur lors du chargement des véhicules');
-      }
-      return res.json();
+      const res = await apiClient.get<Vehicle[]>('/vehicles');
+      return res.data;
     },
   });
 
   const { data: drivers = [] } = useQuery<any[]>({
     queryKey: ['drivers'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/drivers');
-      return res.json();
+      const res = await apiClient.get<any[]>('/drivers');
+      return res.data;
     },
   });
 
@@ -233,29 +231,14 @@ const Vehicles: React.FC = () => {
       };
 
       const url = editingVehicle
-        ? `http://127.0.0.1:5000/api/vehicles/${editingVehicle.id}`
-        : 'http://127.0.0.1:5000/api/vehicles';
+        ? `/vehicles/${editingVehicle.id}`
+        : '/vehicles';
 
-      const method = editingVehicle ? 'PUT' : 'POST';
+      const res = editingVehicle
+        ? await apiClient.put(url, payload)
+        : await apiClient.post(url, payload);
 
-      const fleetUser = localStorage.getItem('fiara_user');
-      const token = fleetUser ? JSON.parse(fleetUser).token : '';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Erreur lors de l’enregistrement du véhicule');
-      }
-
-      return res.json();
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
@@ -280,18 +263,7 @@ const Vehicles: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (vehicle: Vehicle) => {
-      const fleetUser = localStorage.getItem('fiara_user');
-      const token = fleetUser ? JSON.parse(fleetUser).token : '';
-
-      const res = await fetch(`http://127.0.0.1:5000/api/vehicles/${vehicle.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du véhicule');
-      }
+      await apiClient.delete(`/vehicles/${vehicle.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });

@@ -14,6 +14,7 @@ interface StatsCardProps {
   };
   variant?: 'default' | 'primary' | 'success' | 'warning' | 'info' | 'danger';
   className?: string;
+  onClick?: () => void;
 }
 
 const variantStyles = {
@@ -33,13 +34,18 @@ export const StatsCard: React.FC<StatsCardProps> = ({
   trend,
   variant = 'default',
   className,
+  onClick,
 }) => {
   return (
-    <Card variant="glass" className={cn(
-      'animate-scale-in group overflow-hidden transition-all duration-500 vision-3d dashdark-accent-glow',
-      variant !== 'default' && `vision-card-${variant}`,
-      className
-    )}>
+    <Card
+      variant="glass"
+      onClick={onClick}
+      className={cn(
+        'animate-scale-in group overflow-hidden transition-all duration-500 vision-3d dashdark-accent-glow',
+        onClick && 'cursor-pointer hover:scale-[1.02] active:scale-95',
+        variant !== 'default' && `vision-card-${variant}`,
+        className
+      )}>
       <CardContent className="p-4 relative z-10">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col min-w-0">

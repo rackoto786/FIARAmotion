@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 
 from .. import db
 from ..models import User
+from ..utils.auth_utils import token_required
 
 bp = Blueprint("auth", __name__)
 
@@ -65,9 +66,12 @@ def login():
 
     user = User.query.filter(db.func.lower(User.email) == email).first()
     
-    # Validation du mot de passe
-    if not user or not user.password or not check_password_hash(user.password, password):
-        return jsonify({"success": False, "error": "Email ou mot de passe incorrect"}), 401
+    # Validation du statut du compte
+    if user.status != 'active':
+        return jsonify({
+            "success": False, 
+            "error": "Votre compte est en attente d'approbation par un administrateur."
+        }), 403
 
     # Update last login
     user.last_login = datetime.now()
@@ -87,6 +91,7 @@ def login():
         "role": user.role,
         "status": user.status,
         "avatar": user.avatar,
+        "profileEmail": user.profile_email,
         "createdAt": user.created_at.isoformat(),
         "lastLogin": user.last_login.isoformat() if user.last_login else None,
     }
@@ -104,7 +109,20 @@ def login():
 
 
 @bp.post("/logout")
+@token_required
 def logout():
-    return jsonify({"success": True, "message": "Déconnexion réussie"}), 200
+    from flask import g
+    try:
+        g.user.token = None
+        from datetime import datetime
+        # Optionally store a last logout time if needed in future
+        # g.user.last_logout = datetime.now()
+        db.session.commit()
+        from ..utils import log_action
+        log_action(user_id=g.user.id, action="Déconnexion", entite="Auth", entite_id=g.user.id, details=f"Déconnexion de {g.user.name}")
+        return jsonify({"success": True, "message": "Déconnexion réussie"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 

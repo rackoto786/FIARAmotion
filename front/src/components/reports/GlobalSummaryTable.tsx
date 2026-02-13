@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatDateFr, formatCurrency } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { apiClient } from '@/lib/api';
 
 // Interface matching the backend response
 interface GlobalSummaryRow {
@@ -53,16 +54,8 @@ export const GlobalSummaryTable: React.FC = () => {
     const { data: rows = [], isLoading } = useQuery<GlobalSummaryRow[]>({
         queryKey: ['global-summary'],
         queryFn: async () => {
-            const fleetUser = localStorage.getItem('fiara_user');
-            const token = fleetUser ? JSON.parse(fleetUser).token : '';
-
-            const res = await fetch('http://127.0.0.1:5000/api/reports/global_summary', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (!res.ok) throw new Error('Erreur chargement rapport');
-            return res.json();
+            const res = await apiClient.get<GlobalSummaryRow[]>('/reports/global_summary');
+            return res.data;
         }
     });
 

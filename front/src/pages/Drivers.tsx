@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { apiClient } from '@/lib/api';
 
 type DriverFormState = {
   nom: string;
@@ -61,18 +62,16 @@ const Drivers: React.FC = () => {
   const { data: drivers = [], isLoading, isError } = useQuery<Driver[]>({
     queryKey: ['drivers'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/drivers');
-      if (!res.ok) throw new Error('Erreur lors du chargement des chauffeurs');
-      return res.json();
+      const res = await apiClient.get<Driver[]>('/drivers');
+      return res.data;
     },
   });
 
   const { data: vehicles = [] } = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/vehicles');
-      if (!res.ok) throw new Error('Erreur lors du chargement des véhicules');
-      return res.json();
+      const res = await apiClient.get<Vehicle[]>('/vehicles');
+      return res.data;
     },
   });
 
@@ -129,28 +128,14 @@ const Drivers: React.FC = () => {
       };
 
       const url = editingDriver
-        ? `http://127.0.0.1:5000/api/drivers/${editingDriver.id}`
-        : 'http://127.0.0.1:5000/api/drivers';
-      const method = editingDriver ? 'PUT' : 'POST';
+        ? `/drivers/${editingDriver.id}`
+        : '/drivers';
 
-      const fleetUser = localStorage.getItem('fiara_user');
-      const token = fleetUser ? JSON.parse(fleetUser).token : '';
+      const res = editingDriver
+        ? await apiClient.put(url, payload)
+        : await apiClient.post(url, payload);
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Erreur lors de l’enregistrement du chauffeur');
-      }
-
-      return res.json();
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -170,19 +155,7 @@ const Drivers: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (driver: Driver) => {
-      const fleetUser = localStorage.getItem('fiara_user');
-      const token = fleetUser ? JSON.parse(fleetUser).token : '';
-
-      const res = await fetch(`http://127.0.0.1:5000/api/drivers/${driver.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Erreur lors de la suppression du chauffeur');
-      }
+      await apiClient.delete(`/drivers/${driver.id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });

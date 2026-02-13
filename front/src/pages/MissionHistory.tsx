@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api';
 
 const MissionHistory: React.FC = () => {
     const navigate = useNavigate();
@@ -41,7 +42,8 @@ const MissionHistory: React.FC = () => {
     const queryClient = useQueryClient();
 
     useEffect(() => {
-        if (!isAuthLoading && user && user.role !== 'admin' && user.role !== 'technician') {
+        const allowedRoles = ['admin', 'technician', 'collaborator', 'direction', 'driver'];
+        if (!isAuthLoading && user && !allowedRoles.includes(user.role)) {
             navigate('/missions');
         }
     }, [user, isAuthLoading, navigate]);
@@ -49,34 +51,18 @@ const MissionHistory: React.FC = () => {
     // Update Mission Mutation
     const updateMissionMutation = useMutation({
         mutationFn: async (data: { id: string, kilometrageRetour: number, missionnaireRetour: string }) => {
-            // Retrieve token from fleet_user in localStorage
-            const storedUser = localStorage.getItem('fiara_user');
-            const token = storedUser ? JSON.parse(storedUser).token : null;
-
-            const res = await fetch(`http://127.0.0.1:5000/api/missions/${data.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    kilometrageRetour: data.kilometrageRetour,
-                    missionnaireRetour: data.missionnaireRetour
-                })
+            const res = await apiClient.put(`/missions/${data.id}`, {
+                kilometrageRetour: data.kilometrageRetour,
+                missionnaireRetour: data.missionnaireRetour
             });
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || errorData.message || 'Failed to update mission');
-            }
-            return res.json();
+            return res.data;
         },
-        onSuccess: (updatedMission) => {
+        onSuccess: (updatedMission: any) => {
             queryClient.invalidateQueries({ queryKey: ['missions-history'] });
             toast.success("Mission mise à jour avec succès", {
                 style: { background: '#22c55e', color: 'white', border: 'none' }
             });
-            generateMissionPDF(updatedMission, vehicles.find(v => v.id === updatedMission.vehiculeId));
+            generateMissionPDF(updatedMission as Mission, vehicles.find(v => v.id === (updatedMission as Mission).vehiculeId));
             setIsCROpen(false);
         },
         onError: (error) => {
@@ -199,27 +185,24 @@ const MissionHistory: React.FC = () => {
         queryFn: async () => {
             // Fetch missions based on URL param, or default to termine,rejeter if none
             const status = statusParam || 'termine,rejeter';
-            const res = await fetch(`http://127.0.0.1:5000/api/missions?status=${status}`);
-            if (!res.ok) throw new Error('Failed to fetch missions history');
-            return res.json();
+            const res = await apiClient.get<Mission[]>(`/missions?status=${status}`);
+            return res.data;
         },
     });
 
     const { data: vehicles = [] } = useQuery<Vehicle[]>({
         queryKey: ['vehicles'],
         queryFn: async () => {
-            const res = await fetch('http://127.0.0.1:5000/api/vehicles');
-            if (!res.ok) throw new Error('Failed to fetch vehicles');
-            return res.json();
+            const res = await apiClient.get<Vehicle[]>('/vehicles');
+            return res.data;
         },
     });
 
     const { data: drivers = [] } = useQuery<Driver[]>({
         queryKey: ['drivers'],
         queryFn: async () => {
-            const res = await fetch('http://127.0.0.1:5000/api/drivers');
-            if (!res.ok) throw new Error('Failed to fetch drivers');
-            return res.json();
+            const res = await apiClient.get<Driver[]>('/drivers');
+            return res.data;
         },
     });
 
@@ -288,14 +271,16 @@ const MissionHistory: React.FC = () => {
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedMission(mission); setIsViewOpen(true); }}>
                         <Eye className="h-4 w-4 mr-2" /> Détails
                     </Button>
-                    <Button
-                        variant="default"
-                        size="sm"
-                        className="bg-purple-600 hover:bg-purple-700 text-white"
-                        onClick={() => handleOpenCR(mission)}
-                    >
-                        <FileText className="h-4 w-4 mr-2" /> Rapport
-                    </Button>
+                    {mission.state === 'termine' && (
+                        <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            onClick={() => handleOpenCR(mission)}
+                        >
+                            <FileText className="h-4 w-4 mr-2" /> Rapport
+                        </Button>
+                    )}
                 </div>
             )
         }

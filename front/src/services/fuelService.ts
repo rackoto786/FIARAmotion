@@ -2,10 +2,11 @@ import { apiClient } from '@/lib/api';
 import { FuelEntry } from '@/types';
 
 export const fuelService = {
-  async getAll(role?: string, email?: string) {
+  async getAll(role?: string, email?: string, status?: string) {
     const params = new URLSearchParams();
     if (role) params.append('role', role);
     if (email) params.append('email', email);
+    if (status && status !== 'all') params.append('status', status);
 
     const response = await apiClient.get<FuelEntry[]>(`/fuel?${params.toString()}`);
     return response.data;
@@ -65,5 +66,32 @@ export const fuelService = {
   async getByDriver(driverId: string) {
     const response = await apiClient.get<FuelEntry[]>(`/fuel/driver/${driverId}`);
     return response.data;
+  },
+
+  async import(file: File) {
+    // Basic client-side validation
+    const allowed = ['.xlsx', '.xls'];
+    const name = file.name || '';
+    const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+    if (!allowed.includes(ext)) {
+      throw new Error('Format de fichier non supporté. Utilisez .xlsx ou .xls');
+    }
+    if (file.size === 0) throw new Error('Le fichier est vide');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Fichier trop volumineux (max 10MB)');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // IMPORTANT: the axios instance has a default Content-Type = application/json.
+      // For FormData we must allow the browser to set the proper multipart boundary.
+      // Passing Content-Type: undefined removes the default so the browser sets the header.
+      const response = await apiClient.post('/fuel/import', formData, { headers: { 'Content-Type': undefined } });
+      return response.data;
+    } catch (err: any) {
+      // Surface backend payload (if any) for better diagnostics upstream
+      console.error('fuelService.import error response:', err?.response?.data || err.message || err);
+      throw err;
+    }
   },
 };

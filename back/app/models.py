@@ -19,6 +19,7 @@ class User(db.Model):
     profile_email = db.Column(db.String(255))
 
     action_logs = db.relationship("ActionLog", back_populates="user", lazy="selectin")
+    fuel_entries = db.relationship("FuelEntry", back_populates="demandeur", lazy="selectin")
 
 
 class Vehicle(db.Model):
@@ -72,6 +73,34 @@ class Vehicle(db.Model):
     filtre_interval_km = db.Column(db.Integer, default=1000)
     last_filtre_km = db.Column(db.Integer, default=0)
     filtre_alert_sent = db.Column(db.Boolean, default=False)
+    
+    # Nouveaux champs pour alertes périodiques
+    filtre_air_interval_km = db.Column(db.Integer, default=10000)
+    last_filtre_air_km = db.Column(db.Integer, default=0)
+    
+    filtre_carburant_interval_km = db.Column(db.Integer, default=10000)
+    last_filtre_carburant_km = db.Column(db.Integer, default=0)
+    
+    filtre_habitacle_interval_km = db.Column(db.Integer, default=10000)
+    last_filtre_habitacle_km = db.Column(db.Integer, default=0)
+    
+    freins_interval_km = db.Column(db.Integer, default=20000)
+    last_freins_km = db.Column(db.Integer, default=0)
+    
+    amortisseur_interval_km = db.Column(db.Integer, default=50000)
+    last_amortisseur_km = db.Column(db.Integer, default=0)
+    
+    pneus_interval_km = db.Column(db.Integer, default=30000)
+    last_pneus_km = db.Column(db.Integer, default=0)
+    
+    distribution_interval_km = db.Column(db.Integer, default=80000)
+    last_distribution_km = db.Column(db.Integer, default=0)
+    
+    liquide_refroidissement_interval_km = db.Column(db.Integer, default=40000)
+    last_liquide_refroidissement_km = db.Column(db.Integer, default=0)
+    
+    pont_interval_km = db.Column(db.Integer, default=60000)
+    last_pont_km = db.Column(db.Integer, default=0)
 
     # Carte carburant
     num_ancienne_carte_carburant = db.Column(db.String(100))
@@ -88,10 +117,12 @@ class Vehicle(db.Model):
 
     # Existing relationships
     # Explicitly specify foreign_keys to resolve ambiguity with conducteur_id
-    fuel_entries = db.relationship("FuelEntry", back_populates="vehicle", lazy="selectin")
-    maintenances = db.relationship("Maintenance", back_populates="vehicle", lazy="selectin")
-    missions = db.relationship("Mission", back_populates="vehicle", lazy="selectin")
-    planning_items = db.relationship("Planning", back_populates="vehicle", lazy="selectin")
+    fuel_entries = db.relationship("FuelEntry", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
+    maintenances = db.relationship("Maintenance", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
+    missions = db.relationship("Mission", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
+    planning_items = db.relationship("Planning", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
+    compliance_entries = db.relationship("Compliance", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
+    monthly_budgets = db.relationship("FuelMonthlyBudget", back_populates="vehicle", lazy="selectin", cascade="all, delete-orphan")
     drivers = db.relationship("Driver", foreign_keys="[Driver.vehicule_assigne_id]", back_populates="vehicle", lazy="selectin")
 
 
@@ -111,7 +142,6 @@ class Driver(db.Model):
 
     # Explicitly specify foreign_keys
     vehicle = db.relationship("Vehicle", foreign_keys=[vehicule_assigne_id], back_populates="drivers")
-    fuel_entries = db.relationship("FuelEntry", back_populates="driver", lazy="selectin")
     missions = db.relationship("Mission", back_populates="driver", lazy="selectin")
 
 
@@ -120,7 +150,7 @@ class FuelEntry(db.Model):
 
     id = db.Column(db.String, primary_key=True)
     vehicule_id = db.Column(db.String, db.ForeignKey("vehicles.id"), nullable=False)
-    conducteur_id = db.Column(db.String, db.ForeignKey("drivers.id"), nullable=False)
+    demandeur_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     
     # Basic fields
     date = db.Column(db.Date, nullable=False)
@@ -139,6 +169,7 @@ class FuelEntry(db.Model):
     
     # Ticket & Transactions
     numero_ticket = db.Column(db.String(100))
+    ticket_image = db.Column(db.Text)  # Base64 image
     solde_ticket = db.Column(db.Float)
     
     montant_recharge = db.Column(db.Float)
@@ -176,7 +207,7 @@ class FuelEntry(db.Model):
     statut = db.Column(db.String(50), default='en_attente')
 
     vehicle = db.relationship("Vehicle", back_populates="fuel_entries")
-    driver = db.relationship("Driver", back_populates="fuel_entries")
+    demandeur = db.relationship("User", back_populates="fuel_entries")
 
 
 class Maintenance(db.Model):
@@ -186,13 +217,27 @@ class Maintenance(db.Model):
     vehicule_id = db.Column(db.String, db.ForeignKey("vehicles.id"), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    date = db.Column(db.Date, nullable=False)
-    kilometrage = db.Column(db.Integer, nullable=False)
+    date_demande = db.Column(db.Date, nullable=False)
+    date_prevue = db.Column(db.Date, nullable=False)
+    kilometrage = db.Column(db.String(50), nullable=False)
     cout = db.Column(db.Float)
     prestataire = db.Column(db.String(255))
     statut = db.Column(db.String(50), nullable=False)
     demandeur_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     image_facture = db.Column(db.Text)  # Image de la facture en base64
+
+    # Nouveaux champs pour le design
+    priorite = db.Column(db.String(50), default='Moyenne')
+    prochain_entretien_km = db.Column(db.String(50))
+    localisation = db.Column(db.String(255))
+    technicien = db.Column(db.String(255))
+    cout_estime = db.Column(db.Float)
+    notes_supplementaires = db.Column(db.Text)
+    
+    # Rapport d'entretien (Formulaire 2)
+    compte_rendu = db.Column(db.Text)
+    date_realisation = db.Column(db.Date)
+    pieces_remplacees = db.Column(db.Text)
 
     vehicle = db.relationship("Vehicle", back_populates="maintenances")
     demandeur = db.relationship("User")
@@ -206,7 +251,7 @@ class Mission(db.Model):
     reference = db.Column(db.String(50), unique=True, nullable=False)
     missionnaire = db.Column(db.String(255))  # Noms séparés par des virgules
     missionnaire_retour = db.Column(db.String(255)) # Noms séparés par des virgules (Optionnel)
-    state = db.Column(db.String(50), nullable=False, default='nouveau')  # nouveau, planifiée, en cours, terminée, annulée
+    state = db.Column(db.String(50), nullable=False, default='nouveau')  # nouveau, planifiée, en cours, terminée, annulée, archive
     
     # Véhicule et conducteur
     vehicule_id = db.Column(db.String, db.ForeignKey("vehicles.id"), nullable=False)
@@ -222,11 +267,20 @@ class Mission(db.Model):
     lieu_depart = db.Column(db.String(255), nullable=False, default='CAMPUS')
     lieu_destination = db.Column(db.String(255), nullable=False)
     
+    # Nouveaux champs
+    titre = db.Column(db.String(255))
+    numero_om = db.Column(db.String(100))
+    zone = db.Column(db.String(50), default='ville')
+    priorite = db.Column(db.String(50), default='Moyenne')
+    distance_prevue = db.Column(db.Float)
+
     # Kilométrage
     kilometrage_depart = db.Column(db.Integer)
     kilometrage_retour = db.Column(db.Integer)
     kilometre_parcouru = db.Column(db.Integer)  # Calculé
+    trajet = db.Column(db.Text)
     created_by_id = db.Column(db.String, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     vehicle = db.relationship("Vehicle", back_populates="missions")
     driver = db.relationship("Driver", back_populates="missions")
@@ -238,16 +292,21 @@ class Planning(db.Model):
     id = db.Column(db.String, primary_key=True)
     vehicule_id = db.Column(db.String, db.ForeignKey("vehicles.id"), nullable=False)
     conducteur_id = db.Column(db.String, db.ForeignKey("drivers.id"))
-    date_debut = db.Column(db.Date, nullable=False)
-    date_fin = db.Column(db.Date, nullable=False)
+    date_debut = db.Column(db.DateTime, nullable=False)
+    date_fin = db.Column(db.DateTime, nullable=False)
     type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), nullable=False, default='en_attente')
     created_by_id = db.Column(db.String, db.ForeignKey("users.id"))
+    priorite = db.Column(db.Integer, default=3)
+    numero_om = db.Column(db.String(100))
+    zone = db.Column(db.String(50), default='ville')
+    mission_id = db.Column(db.String, db.ForeignKey("missions.id"))
 
     vehicle = db.relationship("Vehicle", back_populates="planning_items")
     driver = db.relationship("Driver")
     created_by = db.relationship("User")
+    mission = db.relationship("Mission", lazy="selectin")
 
 
 class ActionLog(db.Model):
@@ -310,4 +369,25 @@ class Compliance(db.Model):
     expiry_alert_sent = db.Column(db.Boolean, default=False)
     expiry_alert_sent_at = db.Column(db.DateTime)
 
-    vehicle = db.relationship("Vehicle", backref=db.backref("compliance_entries", lazy="dynamic"))
+    vehicle = db.relationship("Vehicle", back_populates="compliance_entries")
+
+
+class FuelMonthlyBudget(db.Model):
+    __tablename__ = "fuel_monthly_budgets"
+
+    id = db.Column(db.String, primary_key=True)
+    vehicle_id = db.Column(db.String, db.ForeignKey("vehicles.id"), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)  # 1 to 12
+    forecast_amount = db.Column(db.Float, nullable=False)  # Budget prévisionnel
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Track if alert was sent for this month to avoid spam
+    alert_sent = db.Column(db.Boolean, default=False)
+
+    vehicle = db.relationship("Vehicle", back_populates="monthly_budgets")
+    
+    __table_args__ = (
+        db.UniqueConstraint('vehicle_id', 'year', 'month', name='unique_vehicle_year_month'),
+    )

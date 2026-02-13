@@ -17,7 +17,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { Clock } from 'lucide-react';
 import { fr } from 'date-fns/locale';
+import { apiClient } from '@/lib/api';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -26,39 +28,103 @@ const Dashboard: React.FC = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/dashboard/stats');
-      if (!res.ok) throw new Error('Failed to fetch dashboard stats');
-      return res.json();
+      const res = await apiClient.get<any>('/dashboard/stats');
+      return res.data;
     },
   });
 
   if (isLoading || !stats) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-muted-foreground">Chargement des statistiques...</div>
+      <div className="space-y-8 pb-8 animate-pulse">
+        <div className="space-y-4">
+          <div className="h-10 w-64 bg-slate-200 dark:bg-zinc-800 rounded-xl" />
+          <div className="h-4 w-96 bg-slate-200 dark:bg-zinc-800 rounded-lg opacity-50" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 bg-slate-200 dark:bg-zinc-800 rounded-3xl" />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="h-80 bg-slate-200 dark:bg-zinc-800 rounded-3xl" />
+          <div className="h-80 bg-slate-200 dark:bg-zinc-800 rounded-3xl" />
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-8 pb-8">
-      <div className="animate-slide-up space-y-2">
-        <h1 className="text-4xl font-black tracking-tight flex items-center gap-3">
-          <span className="opacity-70 font-light italic">Bonjour,</span>
-          <span className="gradient-text">{user?.name.split(' ')[0]}</span>
-          <span className="animate-pulse-glow h-3 w-3 rounded-full bg-primary inline-block ml-1"></span>
-        </h1>
-        <p className="text-muted-foreground text-sm font-medium opacity-60 tracking-wide uppercase">
-          Tableau de bord FIARAmotion • {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
-        </p>
-      </div>
-
-      {/* Primary KPI Section */}
-      <section className="space-y-4 animate-slide-up [animation-delay:100ms]">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/70">Statistiques Vitales</h2>
-          <div className="h-px flex-1 bg-gradient-to-r from-primary/20 to-transparent mx-4"></div>
+  const renderKPIs = () => {
+    if (stats.role === 'driver') {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <StatsCard
+            title="Mon Véhicule"
+            value={stats.myVehicle}
+            subtitle={stats.vehicleStatus}
+            icon={Car}
+            variant="primary"
+          />
+          <StatsCard
+            title="Missions En Cours"
+            value={stats.activeMissions}
+            subtitle="Actuellement"
+            icon={MapPin}
+            variant="success"
+          />
+          <StatsCard
+            title="Missions Planifiées"
+            value={stats.upcomingMissions}
+            subtitle="À venir"
+            icon={TrendingUp}
+            variant="info"
+          />
+          <StatsCard
+            title="Ma Consommation"
+            value={`${stats.avgConsumption} L`}
+            subtitle="Moyenne / 100km"
+            icon={Fuel}
+            variant="warning"
+          />
         </div>
+      );
+    } else if (stats.role === 'collaborator') {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <StatsCard
+            title="Mes Missions"
+            value={stats.totalMissions}
+            subtitle="Total créées"
+            icon={Car}
+            variant="primary"
+          />
+          <StatsCard
+            title="En Attente"
+            value={stats.pendingMissions}
+            subtitle="Missions non validées"
+            icon={AlertTriangle}
+            variant="warning"
+          />
+          <StatsCard
+            title="En Cours"
+            value={stats.activeMissions}
+            subtitle="Missions actives"
+            icon={MapPin}
+            variant="success"
+          />
+          <StatsCard
+            title="Mes Demandes"
+            value={stats.totalRequests}
+            subtitle={`${stats.pendingRequests} en attente`}
+            icon={Wrench}
+            variant="info"
+          />
+        </div>
+      );
+    } else {
+      // Admin / Tech / Direction (Default)
+      return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatsCard
             title="Véhicules"
@@ -89,50 +155,81 @@ const Dashboard: React.FC = () => {
             variant="success"
           />
         </div>
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-8 pb-8">
+      <div className="animate-slide-up space-y-2">
+        <h1 className="text-4xl font-black tracking-tight flex items-center gap-3">
+          <span className="opacity-70 font-light italic">Bonjour,</span>
+          <span className="gradient-text">{user?.name.split(' ')[0]}</span>
+          <span className="animate-pulse-glow h-3 w-3 rounded-full bg-primary inline-block ml-1"></span>
+        </h1>
+        <p className="text-muted-foreground text-sm font-medium opacity-60 tracking-wide uppercase">
+          Tableau de bord FIARAmotion • {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
+        </p>
+      </div>
+
+      {/* Primary KPI Section */}
+      <section className="space-y-4 animate-slide-up [animation-delay:100ms]">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-primary/70">Statistiques Vitales</h2>
+          <div className="h-px flex-1 bg-gradient-to-r from-primary/20 to-transparent mx-4"></div>
+        </div>
+        {renderKPIs()}
       </section>
 
-      {/* Secondary Performance Section */}
-      <section className="animate-slide-up [animation-delay:200ms]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatsCard
-            title="Maintenance"
-            value={stats.vehiculesEnMaintenance}
-            subtitle="Unités immobilisées"
-            icon={AlertTriangle}
-            variant="warning"
-            className="bg-warning/5"
-          />
-          <StatsCard
-            title="Consommation"
-            value={`${stats.consommationMoyenne}`}
-            subtitle="L/100km Moy. Globale"
-            icon={Fuel}
-            variant="info"
-            className="bg-info/5"
-          />
-          <StatsCard
-            title="Disponibilité"
-            value={`${Math.round((stats.vehiculesEnService / stats.totalVehicules) * 100)}%`}
-            subtitle="Flotte opérationnelle"
-            icon={CheckCircle}
-            variant="success"
-            className="bg-success/5"
-          />
-          <StatsCard
-            title="Utilisation"
-            value={`${Math.round((stats.missionsEnCours / (stats.vehiculesEnService || 1)) * 100)}%`}
-            subtitle="Rendement missions"
-            icon={TrendingUp}
-            variant="primary"
-            className="bg-primary/5"
-          />
-        </div>
-      </section>
+      {/* Secondary Performance Section (Only for Admins/Techs roughly, or keep for all but simpler?) 
+          Let's hide specific secondary stats for driver/collab if they don't make sense, 
+          or keep them if they are general. 
+          For now, 'Maintenance' and 'Consommation' global stats might distract drivers/collabs.
+          Let's conditionally render Secondary Section too.
+      */}
+      {(!stats.role || stats.role === 'admin') && (
+        <section className="animate-slide-up [animation-delay:200ms]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <StatsCard
+              title="Maintenance"
+              value={stats.vehiculesEnMaintenance}
+              subtitle="Unités immobilisées"
+              icon={AlertTriangle}
+              variant="warning"
+              className="bg-warning/5"
+            />
+            <StatsCard
+              title="Consommation"
+              value={`${stats.consommationMoyenne}`}
+              subtitle="L/100km Moy. Globale"
+              icon={Fuel}
+              variant="info"
+              className="bg-info/5"
+            />
+            <StatsCard
+              title="Disponibilité"
+              value={`${Math.round((stats.vehiculesEnService / stats.totalVehicules) * 100)}%`}
+              subtitle="Flotte opérationnelle"
+              icon={CheckCircle}
+              variant="success"
+              className="bg-success/5"
+            />
+            <StatsCard
+              title="Utilisation"
+              value={`${Math.round((stats.missionsEnCours / (stats.vehiculesEnService || 1)) * 100)}%`}
+              subtitle="Rendement missions"
+              icon={TrendingUp}
+              variant="primary"
+              className="bg-primary/5"
+            />
+          </div>
+        </section>
+      )}
 
       {/* Analysis Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-slide-up [animation-delay:300ms]">
-        <Card variant="glass" className="border-primary/5 overflow-hidden">
-          <CardHeader className="border-b border-primary/5 bg-primary/5 pb-4">
+        <Card variant="glass" className="vision-card-primary overflow-hidden">
+          <CardHeader className="border-b border-white/5 bg-white/5 pb-4">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Fuel className="h-4 w-4 text-primary" />
               Analyse Carburant
@@ -143,8 +240,8 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card variant="glass" className="border-info/5 overflow-hidden">
-          <CardHeader className="border-b border-info/5 bg-info/5 pb-4">
+        <Card variant="glass" className="vision-card-info overflow-hidden">
+          <CardHeader className="border-b border-white/5 bg-white/5 pb-4">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Wrench className="h-4 w-4 text-info" />
               Répartition Maintenance
@@ -158,8 +255,8 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-slide-up [animation-delay:400ms]">
         <div className="lg:col-span-8">
-          <Card variant="glass" className="border-primary/5 overflow-hidden h-full">
-            <CardHeader className="border-b border-primary/5 bg-primary/5 pb-4">
+          <Card variant="glass" className="vision-card-success overflow-hidden h-full">
+            <CardHeader className="border-b border-white/5 bg-white/5 pb-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <Car className="h-4 w-4 text-primary" />
                 Utilisation par Véhicule
@@ -172,12 +269,61 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="lg:col-span-4 space-y-8">
           <ComplianceAlerts />
-          <div className="animate-slide-up [animation-delay:500ms]">
-            <RecentActivity />
-          </div>
+          {stats.role === 'admin' && (
+            <OnlineUsersCard />
+          )}
         </div>
       </div>
     </div>
+  );
+};
+
+const OnlineUsersCard: React.FC = () => {
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ['usersOnline'],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>('/users');
+      return res.data;
+    },
+    refetchInterval: 60000,
+  });
+
+  const onlineUsers = (users || []).filter((u: any) => u.isOnline);
+
+  return (
+    <Card variant="glass" className="border-primary/5 overflow-hidden animate-slide-up">
+      <CardHeader className="border-b border-primary/5 bg-primary/5 pb-4">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <div className="p-1 rounded-lg bg-primary/20">
+            <Clock className="h-4 w-4 text-primary" />
+          </div>
+          Utilisateurs en ligne
+          <Badge className="ml-auto h-5 px-2 text-[10px]">{onlineUsers.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3">
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">Chargement...</div>
+        ) : onlineUsers.length === 0 ? (
+          <div className="text-sm text-muted-foreground">Aucun utilisateur en ligne.</div>
+        ) : (
+          <div className="space-y-2">
+            {onlineUsers.slice(0, 6).map((u: any) => (
+              <div key={u.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center text-sm font-bold">
+                  {u.name ? u.name.split(' ').map((n: string) => n[0]).join('') : '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{u.name}</div>
+                  <div className="text-xs text-muted-foreground">Actif {format(new Date(u.lastLogin), 'dd/MM/yyyy HH:mm', { locale: fr })}</div>
+                </div>
+                <Badge variant="success" className="h-6">En ligne</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -185,21 +331,15 @@ const ComplianceAlerts: React.FC = () => {
   const { data: alerts, isLoading } = useQuery({
     queryKey: ['complianceAlerts'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/compliance/alerts', {
-        headers: {
-          'Authorization': `Bearer ${JSON.parse(localStorage.getItem('fiara_user') || '{}').token}`
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch compliance alerts');
-      const data = await res.json();
-      return data;
+      const res = await apiClient.get<any>('/compliance/alerts');
+      return res.data;
     },
   });
 
   if (isLoading || !alerts) return null;
 
   return (
-    <Card variant="glass" className="border-warning/10 overflow-hidden shadow-lg shadow-warning/5 animate-scale-in">
+    <Card variant="glass" className="vision-card-warning overflow-hidden shadow-lg shadow-warning/5 animate-scale-in">
       <CardHeader className="bg-warning/5 border-b border-warning/10 pb-3">
         <CardTitle className="text-sm font-bold flex items-center gap-2 text-warning">
           <div className="p-1.5 rounded-lg bg-warning/20">

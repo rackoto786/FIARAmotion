@@ -1,0 +1,57 @@
+--- USERS ---
+ID: c8047d01-0a45-44c7-9d86-1363a683acea
+  Email/Matricule: rackoto786@gmail.com
+  ProfileEmail: rackoto786@gmail.com
+  Role: admin
+  Status: active
+ID: 50d74e39-79d3-4146-a838-9be81d8c66b9
+  Email/Matricule: pcr04536
+  ProfileEmail: rackoto@gmail.com
+  Role: collaborator
+  Status: active
+ID: a1b111ce-9dcc-47b8-834c-8b930546237d
+  Email/Matricule: pcrs0007
+  ProfileEmail: narindra807@gmail.com
+  Role: collaborator
+  Status: pending
+
+--- DRIVERS ---
+ID: 5dc526cd-05df-4068-9d87-da1d17b0ba30
+  Nom: jean jenaa
+  Email: naryndranyy@gmail.com
+  VehiculeAssigne: None
+ID: 9c82d591-6fcb-43cb-9aa8-4f0c0752a9cc
+  Nom: nary nary
+  Email: rackoto786@gmail.com
+  VehiculeAssigne: None
+ID: dcff760f-21e1-4672-9b63-44eccbe23904
+  Nom: koyto rackoto
+  Email: naryndranyy@gmail.com
+  VehiculeAssigne: None
+
+--- VEHICLES ---
+ID: 56e67d41-8bcd-4a35-b91e-7b3ffec73c1d
+  Immatriculation: 43224 JF
+  Marque: dodge
+  Modele: RAM
+  Conducteur ID: 5dc526cd-05df-4068-9d87-da1d17b0ba30
+ID: eb3e1a99-8204-4cfc-b845-095a9ea52a19
+  Immatriculation: 1234 JH
+  Marque: lambo
+  Modele: predator
+  Conducteur ID: None
+ID: feedba5e-4f26-420b-b42d-65eaf0a42fa6
+  Immatriculation: 1234 H-G
+  Marque: nissan
+  Modele: navara
+  Conducteur ID: None
+ID: f322f9d0-113e-44a4-9af5-c42021fbf4b7
+  Immatriculation: 5555 FG
+  Marque: Ducati
+  Modele: Tsa haikoo
+  Conducteur ID: 5dc526cd-05df-4068-9d87-da1d17b0ba30
+ID: 29802d58-e3c0-4934-85ac-34f07d78fc44
+  Immatriculation: 7777 FF
+  Marque: Bugatti 
+  Modele: Tourbillon
+  Conducteur ID: 5dc526cd-05df-4068-9d87-da1d17b0ba30

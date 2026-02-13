@@ -8,8 +8,12 @@ bp = Blueprint("logs", __name__)
 @bp.get("/")
 @token_required
 def get_logs():
-    from flask import request
+    from flask import request, g
     from datetime import datetime
+    
+    # Check if current user is admin
+    if not g.user or g.user.role != 'admin':
+        return jsonify({"success": False, "error": "Accès refusé. Seuls les administrateurs peuvent accéder aux logs."}), 403
 
     start_date_str = request.args.get('startDate')
     end_date_str = request.args.get('endDate')

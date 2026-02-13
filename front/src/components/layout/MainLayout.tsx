@@ -9,18 +9,13 @@ export const MainLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex">
       <Sidebar
         isCollapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      <div
-        className={cn(
-          'transition-all duration-500 ease-in-out',
-          sidebarCollapsed ? 'ml-20' : 'ml-72'
-        )}
-      >
+      <div className="flex-1 min-w-0 transition-all duration-500 ease-in-out">
         <Header onMenuToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
 
         <main className="p-4 lg:p-6">

@@ -92,10 +92,10 @@ def get_recent_requests(days: int = 7) -> Dict[str, Any]:
     # Get recent maintenance requests
     maintenance_requests = Maintenance.query.filter(
         and_(
-            Maintenance.date >= cutoff_date.date(),
+            Maintenance.date_demande >= cutoff_date.date(),
             Maintenance.statut.in_(['en_attente', 'accepte'])
         )
-    ).order_by(Maintenance.date.desc()).all()
+    ).order_by(Maintenance.date_demande.desc()).all()
     
     # Get recent planning requests
     planning_requests = Planning.query.filter(
@@ -112,7 +112,7 @@ def get_recent_requests(days: int = 7) -> Dict[str, Any]:
                 "id": m.id,
                 "type": m.type,
                 "vehicule": m.vehicle.immatriculation if m.vehicle else "N/A",
-                "date": m.date.strftime('%d/%m/%Y'),
+                "date": m.date_demande.strftime('%d/%m/%Y'),
                 "statut": m.statut,
                 "demandeur": m.demandeur.name if m.demandeur else "N/A"
             }
@@ -178,7 +178,7 @@ def get_vehicle_info(immatriculation: str) -> Dict[str, Any]:
             Maintenance.vehicule_id == vehicle.id,
             Maintenance.statut.in_(['en_attente', 'accepte'])
         )
-    ).order_by(Maintenance.date.asc()).first()
+    ).order_by(Maintenance.date_demande.asc()).first()
     
     return {
         "immatriculation": vehicle.immatriculation,
@@ -204,7 +204,7 @@ def get_vehicle_info(immatriculation: str) -> Dict[str, Any]:
         } if next_mission else None,
         "maintenance_a_venir": {
             "type": next_maintenance.type,
-            "date": next_maintenance.date.strftime('%d/%m/%Y'),
+            "date": next_maintenance.date_demande.strftime('%d/%m/%Y'),
             "statut": next_maintenance.statut
         } if next_maintenance else None
     }
@@ -230,7 +230,7 @@ def get_maintenance_status() -> Dict[str, Any]:
                 "id": m.id,
                 "vehicule": m.vehicle.immatriculation if m.vehicle else "N/A",
                 "type": m.type,
-                "date": m.date.strftime('%d/%m/%Y'),
+                "date": m.date_demande.strftime('%d/%m/%Y'),
                 "demandeur": m.demandeur.name if m.demandeur else "N/A"
             }
             for m in pending[:5]  # Limit to 5 most recent

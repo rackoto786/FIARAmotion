@@ -24,9 +24,10 @@ def token_required(f):
         try:
             # Find user with this token
             current_user = User.query.filter_by(token=token).first()
-            if not current_user:
-                print(f"[DEBUG AUTH] Token invalid/not found: {token[:20]}...")
-                return jsonify({'message': 'Token invalide !'}), 401
+            # Check if user is approved (active)
+            if current_user.status != 'active':
+                print(f"[DEBUG AUTH] Account not approved: {current_user.email} (Status: {current_user.status})")
+                return jsonify({'message': 'Compte non approuvé. Veuillez contacter un administrateur.'}), 403
             
             # Save user in global flask context
             g.user = current_user

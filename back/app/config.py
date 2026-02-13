@@ -21,7 +21,7 @@ class Config:
     MAIL_PORT = 587
     MAIL_USE_TLS = True
     MAIL_USERNAME = "rackoto786@gmail.com"
-    MAIL_PASSWORD = "mutf atxa ffeq ssmt"
+    MAIL_PASSWORD = "mhoo etou mfdn yzan"
     MAIL_DEFAULT_SENDER = "rackoto786@gmail.com"
 
 

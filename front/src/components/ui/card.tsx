@@ -8,7 +8,7 @@ const cardVariants = cva(
     variants: {
       variant: {
         default: "bg-card border-border shadow-card",
-        glass: "bg-card/80 backdrop-blur-xl border-border/50",
+        glass: "bg-card/90 dark:bg-card/40 backdrop-blur-2xl border-white/20 dark:border-white/5 shadow-xl",
         elevated: "bg-card border-border shadow-elevated",
         gradient: "bg-card border-border/50 shadow-card",
         glow: "bg-card border-primary/20 shadow-glow",
@@ -21,7 +21,7 @@ const cardVariants = cva(
   }
 );
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {}
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> { }
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant, ...props }, ref) => (
   <div ref={ref} className={cn(cardVariants({ variant, className }))} {...props} />

@@ -64,10 +64,9 @@ const navItems: NavItem[] = [
   },
   {
     icon: Wrench,
-    label: 'Entretien',
+    label: 'Tâches de réparation',
     path: '/maintenance',
-    roles: ['admin', 'technician', 'direction', 'collaborator'],
-    badge: 3,
+    roles: ['admin', 'technician', 'driver', 'direction', 'collaborator'],
   },
   {
     icon: Fuel,
@@ -79,7 +78,7 @@ const navItems: NavItem[] = [
     icon: MapPin,
     label: 'Missions',
     path: '/missions',
-    roles: ['admin', 'technician', 'driver', 'direction'],
+    roles: ['admin', 'technician', 'driver', 'direction', 'collaborator'],
     badge: 2,
   },
   {
@@ -108,18 +107,51 @@ const navItems: NavItem[] = [
   },
 ];
 
+import { useQuery } from '@tanstack/react-query';
+
+// ... existing imports
+import { apiClient } from '@/lib/api';
+
 export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
   const { user, logout } = useAuth();
   const { currentTheme, setTheme } = useTheme();
   const location = useLocation();
   const [isThemePickerOpen, setIsThemePickerOpen] = useState(false);
 
+  // Fetch dynamic badges
+  const { data: badges = { missions: 0, maintenance: 0, compliance: 0, planning: 0 } } = useQuery({
+    queryKey: ['badges'],
+    queryFn: async () => {
+      const res = await apiClient.get<any>('/notifications/badges');
+      return res.data;
+    },
+    // Refresh every 30 seconds
+    refetchInterval: 30000,
+  });
+
   if (!user) return null;
 
-  const filteredNavItems = navItems.filter(item => item.roles.includes(user.role));
+  const filteredNavItems = navItems
+    .filter(item => item.roles.includes(user.role))
+    .map(item => {
+      // Override hardcoded badges with dynamic ones
+      if (item.path === '/missions') {
+        return { ...item, badge: badges.missions > 0 ? badges.missions : undefined };
+      }
+      if (item.path === '/maintenance') {
+        return { ...item, badge: badges.maintenance > 0 ? badges.maintenance : undefined };
+      }
+      if (item.path === '/compliance') {
+        return { ...item, badge: badges.compliance > 0 ? badges.compliance : undefined };
+      }
+      if (item.path === '/planning') {
+        return { ...item, badge: badges.planning > 0 ? badges.planning : undefined };
+      }
+      return { ...item, badge: undefined }; // Clear hardcoded badges for others if any
+    });
 
   const NavItemComponent = ({ item }: { item: NavItem }) => {
-    const isActive = location.pathname === item.path;
+    const isActive = location.pathname === item.path || (item.path === '/maintenance' && location.pathname === '/maintenance/requests');
     const Icon = item.icon;
 
     const content = (
@@ -171,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
         background: `linear-gradient(to bottom, ${currentTheme.gradientFrom}, ${currentTheme.gradientVia}, ${currentTheme.gradientTo})`,
       }}
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen transition-all duration-500 ease-in-out shadow-2xl rounded-r-3xl',
+        'sticky top-2 left-0 z-40 h-[calc(100vh-1rem)] ml-2 my-2 transition-all duration-500 ease-in-out shadow-2xl rounded-3xl shrink-0',
         isCollapsed ? 'w-20' : 'w-72'
       )}
     >

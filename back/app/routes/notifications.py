@@ -73,3 +73,45 @@ def mark_as_read(id):
         db.session.commit()
 
     return jsonify({"success": True}), 200
+
+@bp.get("/badges")
+def get_badge_counts():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"missions": 0, "maintenance": 0}), 200
+    
+    token = auth_header.split(" ")[1] if " " in auth_header else auth_header
+    user = User.query.filter_by(token=token).first()
+    
+    if not user:
+        return jsonify({"missions": 0, "maintenance": 0}), 200
+
+    mission_count = 0
+    maintenance_count = 0
+    
+    mission_count = 0
+    maintenance_count = 0
+    compliance_count = 0
+    planning_count = 0
+    
+    if user.role in ['admin', 'technician']:
+        from ..models import Mission, Maintenance, Compliance, Planning
+        from datetime import date, timedelta
+        
+        mission_count = Mission.query.filter_by(state='nouveau').count()
+        maintenance_count = Maintenance.query.filter_by(statut='en_attente').count()
+        planning_count = Planning.query.filter_by(status='en_attente').count()
+        
+        # Compliance expiring in 30 days or less (including expired)
+        expiry_threshold = date.today() + timedelta(days=30)
+        compliance_count = Compliance.query.filter(
+            Compliance.statut.in_(['valide', 'à_renouveler']), # only active ones
+            Compliance.date_expiration <= expiry_threshold
+        ).count()
+        
+    return jsonify({
+        "missions": mission_count,
+        "maintenance": maintenance_count,
+        "compliance": compliance_count,
+        "planning": planning_count
+    }), 200

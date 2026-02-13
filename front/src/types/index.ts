@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   status: 'active' | 'pending';
   avatar?: string;
+  profileEmail?: string;
   createdAt: string;
   lastLogin?: string;
 }
@@ -77,7 +78,7 @@ export interface Driver {
 export interface FuelEntry {
   id: string;
   vehiculeId: string;
-  conducteurId: string;
+  demandeurId: string;
 
   date: string;
   heure?: string;
@@ -91,8 +92,9 @@ export interface FuelEntry {
   prixUnitaire?: number;
   ancienSolde?: number;
 
-  numeroTicket?: string;
-  soldeTicket?: number;
+  numeroTicket: string;
+  ticketImage?: string;
+  soldeTicket: number;
   montantRecharge?: number;
   montantRistourne?: number;
   montantTransactionAnnuler?: number;
@@ -129,14 +131,24 @@ export interface Maintenance {
   vehiculeId: string;
   type: 'revision' | 'vidange' | 'freins' | 'pneus' | 'autre';
   description: string;
-  date: string;
+  dateDemande: string;
+  datePrevue: string;
   kilometrage: number;
   cout?: number;
   prestataire?: string;
-  statut: 'en_attente' | 'accepte' | 'rejete' | 'en_cours' | 'cloture';
+  statut: 'en_attente' | 'accepte' | 'rejete' | 'en_cours' | 'cloture' | 'planifie' | 'archive';
   demandeurId: string;
   documents?: string[];
   imageFacture?: string; // Image de la facture en base64
+  priorite?: string;
+  prochainEntretienKm?: number;
+  localisation?: string;
+  technicien?: string;
+  coutEstime?: number;
+  notesSupplementaires?: string;
+  compteRendu?: string;
+  dateRealisation?: string;
+  piecesRemplacees?: string;
 }
 
 export interface Mission {
@@ -155,9 +167,16 @@ export interface Mission {
   kilometrageDepart?: number;
   kilometrageRetour?: number; // Was kilometrageArrivee
   kilometreParcouru?: number;
-  state: 'nouveau' | 'planifie' | 'en_cours' | 'termine' | 'annule' | 'rejeter';
+  state: 'nouveau' | 'planifie' | 'en_cours' | 'termine' | 'annule' | 'rejeter' | 'archive';
   immatriculation?: string;
   createdById?: string;
+  titre?: string;
+  priorite?: 'Haute' | 'Moyenne' | 'Basse' | 'Critique' | 'Faible';
+  distancePrevue?: number;
+  trajet?: string;
+  createdAt?: string;
+  numeroOm?: string;
+  zone?: 'ville' | 'periferie';
 }
 
 export interface Planning {
@@ -166,10 +185,22 @@ export interface Planning {
   conducteurId?: string;
   dateDebut: string;
   dateFin: string;
-  type: 'mission' | 'maintenance' | 'disponible' | 'reserve';
+  type: string;
   description: string;
   status: PlanningStatus;
   createdById?: string;
+  priorite?: number;
+  missionnaire?: string;
+  lieuDepart?: string;
+  lieuDestination?: string;
+  kilometrageDepart?: number;
+  titre?: string;
+  priorite_label?: string;
+  distancePrevue?: number;
+  trajet?: string;
+  mission_reference?: string;
+  numeroOm?: string;
+  zone?: 'ville' | 'periferie';
 }
 
 export interface ActionLog {
@@ -205,6 +236,7 @@ export interface RolePermissions {
   canApproveRequests: boolean;
   canViewLogs: boolean;
   canManageCompliance: boolean;
+  canDeleteMaintenance: boolean;
 }
 
 export interface Compliance {
@@ -236,6 +268,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canApproveRequests: true,
     canViewLogs: true,
     canManageCompliance: true,
+    canDeleteMaintenance: true,
   },
   technician: {
     canManageUsers: false,
@@ -249,12 +282,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canApproveRequests: true,
     canViewLogs: false,
     canManageCompliance: true,
+    canDeleteMaintenance: true,
   },
   driver: {
     canManageUsers: false,
     canManageVehicles: false,
     canManageDrivers: false,
-    canManageMaintenance: false,
+    canManageMaintenance: true,
     canManageFuel: true,
     canManageMissions: false,
     canManagePlanning: false,
@@ -262,6 +296,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canApproveRequests: false,
     canViewLogs: false,
     canManageCompliance: false,
+    canDeleteMaintenance: false,
   },
   direction: {
     canManageUsers: false,
@@ -275,6 +310,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canApproveRequests: false,
     canViewLogs: false,
     canManageCompliance: false,
+    canDeleteMaintenance: false,
   },
   collaborator: {
     canManageUsers: false,
@@ -288,6 +324,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canApproveRequests: false,
     canViewLogs: false,
     canManageCompliance: false,
+    canDeleteMaintenance: false,
   },
 };
 
@@ -312,6 +349,8 @@ export const MAINTENANCE_STATUS_LABELS: Record<Maintenance['statut'], string> = 
   rejete: 'Rejeté',
   en_cours: 'En Cours',
   cloture: 'Clôturé',
+  planifie: 'Planifié',
+  archive: 'Archivé',
 };
 
 export const MISSION_STATUS_LABELS: Record<Mission['state'], string> = {
@@ -321,6 +360,7 @@ export const MISSION_STATUS_LABELS: Record<Mission['state'], string> = {
   termine: 'Terminée',
   annule: 'Annulée',
   rejeter: 'Rejetée',
+  archive: 'Archivée',
 };
 
 export type PlanningStatus = 'en_attente' | 'acceptee' | 'rejetee' | 'cloturee';

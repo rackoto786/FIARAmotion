@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2 } from "lucide-react";
+import { apiClient } from '@/lib/api';
 
 interface MaintenanceRecapTableProps {
     vehicleId: string;
@@ -16,16 +17,8 @@ export const MaintenanceRecapTable: React.FC<MaintenanceRecapTableProps> = ({ ve
     const { data: recap, isLoading } = useQuery<Record<string, number[]>>({
         queryKey: ['vehicle-maintenance-recap', vehicleId],
         queryFn: async () => {
-            const fleetUser = localStorage.getItem('fiara_user');
-            const token = fleetUser ? JSON.parse(fleetUser).token : '';
-
-            const res = await fetch(`http://127.0.0.1:5000/api/vehicles/${vehicleId}/maintenance-recap`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (!res.ok) throw new Error('Erreur lors du chargement du récapitulatif');
-            return res.json();
+            const res = await apiClient.get<Record<string, number[]>>(`/vehicles/${vehicleId}/maintenance-recap`);
+            return res.data;
         }
     });
 

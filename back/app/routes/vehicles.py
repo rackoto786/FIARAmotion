@@ -56,6 +56,26 @@ def vehicle_to_dict(vehicle: Vehicle) -> dict:
         "filtre_interval_km": vehicle.filtre_interval_km,
         "last_filtre_km": vehicle.last_filtre_km,
         "filtre_alert_sent": vehicle.filtre_alert_sent,
+        
+        # New periodic maintenance fields
+        "filtre_air_interval_km": vehicle.filtre_air_interval_km,
+        "last_filtre_air_km": vehicle.last_filtre_air_km,
+        "filtre_carburant_interval_km": vehicle.filtre_carburant_interval_km,
+        "last_filtre_carburant_km": vehicle.last_filtre_carburant_km,
+        "filtre_habitacle_interval_km": vehicle.filtre_habitacle_interval_km,
+        "last_filtre_habitacle_km": vehicle.last_filtre_habitacle_km,
+        "freins_interval_km": vehicle.freins_interval_km,
+        "last_freins_km": vehicle.last_freins_km,
+        "amortisseur_interval_km": vehicle.amortisseur_interval_km,
+        "last_amortisseur_km": vehicle.last_amortisseur_km,
+        "pneus_interval_km": vehicle.pneus_interval_km,
+        "last_pneus_km": vehicle.last_pneus_km,
+        "distribution_interval_km": vehicle.distribution_interval_km,
+        "last_distribution_km": vehicle.last_distribution_km,
+        "liquide_refroidissement_interval_km": vehicle.liquide_refroidissement_interval_km,
+        "last_liquide_refroidissement_km": vehicle.last_liquide_refroidissement_km,
+        "pont_interval_km": vehicle.pont_interval_km,
+        "last_pont_km": vehicle.last_pont_km,
     }
 
 
@@ -236,6 +256,27 @@ def update_vehicle(vehicle_id: str):
         if "filtre_alert_sent" in data:
             vehicle.filtre_alert_sent = bool(data["filtre_alert_sent"])
 
+        # New Periodic Maintenance Fields
+        int_fields = [
+            'filtre_air_interval_km', 'last_filtre_air_km',
+            'filtre_carburant_interval_km', 'last_filtre_carburant_km',
+            'filtre_habitacle_interval_km', 'last_filtre_habitacle_km',
+            'freins_interval_km', 'last_freins_km',
+            'amortisseur_interval_km', 'last_amortisseur_km',
+            'pneus_interval_km', 'last_pneus_km',
+            'distribution_interval_km', 'last_distribution_km',
+            'liquide_refroidissement_interval_km', 'last_liquide_refroidissement_km',
+            'pont_interval_km', 'last_pont_km'
+        ]
+        
+        for field in int_fields:
+            if field in data:
+                # Use default 0 or high number? Better to preserve or set.
+                # If value is present, cast to int.
+                val = data[field]
+                if val not in (None, ""):
+                    setattr(vehicle, field, int(val))
+
         # Date fields
         if "date_acquisition" in data and data["date_acquisition"]:
             vehicle.date_acquisition = date.fromisoformat(data["date_acquisition"])
@@ -280,8 +321,8 @@ def get_maintenance_recap(vehicle_id: str):
     
     # Query maintenance costs grouped by year and month
     results = db.session.query(
-        extract('year', Maintenance.date).label('year'),
-        extract('month', Maintenance.date).label('month'),
+        extract('year', Maintenance.date_demande).label('year'),
+        extract('month', Maintenance.date_demande).label('month'),
         func.sum(Maintenance.cout).label('total_cost')
     ).filter(Maintenance.vehicule_id == vehicle_id).group_by('year', 'month').order_by('year', 'month').all()
     

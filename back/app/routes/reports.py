@@ -30,13 +30,13 @@ def get_global_summary():
     # Maintenance: {(vid, year, month): cost}
     maintenance_stats = db.session.query(
         Maintenance.vehicule_id,
-        func.extract('year', Maintenance.date).label('year'),
-        func.extract('month', Maintenance.date).label('month'),
+        func.extract('year', Maintenance.date_demande).label('year'),
+        func.extract('month', Maintenance.date_demande).label('month'),
         func.sum(Maintenance.cout).label('total_cost')
     ).group_by(
         Maintenance.vehicule_id, 
-        func.extract('year', Maintenance.date),
-        func.extract('month', Maintenance.date)
+        func.extract('year', Maintenance.date_demande),
+        func.extract('month', Maintenance.date_demande)
     ).all()
     
     # Total Maintenance Lifetime: {vid: total_cost}
@@ -140,7 +140,7 @@ def get_reports_stats():
     
     # Total maintenance count (current year)
     total_maintenance_count = Maintenance.query.filter(
-        func.extract('year', Maintenance.date) == current_year
+        func.extract('year', Maintenance.date_demande) == current_year
     ).count()
     
     # Availability: (Total - In Maintenance) / Total
@@ -159,9 +159,9 @@ def get_reports_stats():
     
     # Monthly Maintenance Costs
     monthly_maint = db.session.query(
-        func.extract('month', Maintenance.date).label('month'),
+        func.extract('month', Maintenance.date_demande).label('month'),
         func.sum(Maintenance.cout).label('cost')
-    ).filter(func.extract('year', Maintenance.date) == current_year).group_by(func.extract('month', Maintenance.date)).all()
+    ).filter(func.extract('year', Maintenance.date_demande) == current_year).group_by(func.extract('month', Maintenance.date_demande)).all()
     
     month_names = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"]
     cost_data = []

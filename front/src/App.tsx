@@ -15,7 +15,10 @@ import Dashboard from "./pages/Dashboard";
 import Vehicles from "./pages/Vehicles";
 import Drivers from "./pages/Drivers";
 import Maintenance from "./pages/Maintenance";
+import MaintenanceReports from "./pages/MaintenanceReports";
+import MaintenanceArchives from "./pages/MaintenanceArchives";
 import Fuel from "./pages/Fuel";
+import FuelYearEndStats from "./pages/FuelYearEndStats";
 import Missions from "./pages/Missions";
 import MissionHistory from "./pages/MissionHistory";
 import Planning from "./pages/Planning";
@@ -83,11 +86,19 @@ const router = createBrowserRouter([
       },
       {
         path: "maintenance",
-        element: <Maintenance />,
+        children: [
+          { index: true, element: <Maintenance /> },
+          { path: "reports", element: <MaintenanceReports /> },
+          { path: "archives", element: <MaintenanceArchives /> },
+        ]
       },
       {
         path: "fuel",
         element: <Fuel />,
+      },
+      {
+        path: "fuel/year-end",
+        element: <FuelYearEndStats />,
       },
       {
         path: "missions",

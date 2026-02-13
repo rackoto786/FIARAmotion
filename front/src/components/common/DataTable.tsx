@@ -72,7 +72,7 @@ export function DataTable<T extends { id: string }>({
                   setSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-10 bg-muted/30 border-primary/5 focus:border-primary/20 transition-all rounded-full h-10"
+                className="pl-10 bg-muted/30 dark:bg-slate-900/50 border-primary/5 dark:border-border/50 focus:border-primary/20 transition-all rounded-full h-10 text-foreground"
               />
             </div>
             {extraFilters}

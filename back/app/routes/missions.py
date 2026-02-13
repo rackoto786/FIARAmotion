@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, g
 from datetime import datetime, date
 
 from .. import db
-from .. models import Mission, Vehicle, Driver, User
+from .. models import Mission, Vehicle, Driver, User, Planning
 from ..utils.email_utils import send_mission_creation_alert, send_mission_status_notification
 from ..utils.auth_utils import token_required
 
@@ -30,6 +30,13 @@ def mission_to_dict(m: Mission) -> dict:
         "immatriculation": m.vehicle.immatriculation if m.vehicle else None, # Added as requested in "Informations de base"
         "createdById": m.created_by_id,
         "missionnaireRetour": m.missionnaire_retour,
+        "titre": m.titre,
+        "priorite": m.priorite,
+        "numeroOm": m.numero_om,
+        "zone": m.zone,
+        "distancePrevue": m.distance_prevue,
+        "trajet": m.trajet,
+        "createdAt": m.created_at.isoformat() if m.created_at else None,
     }
 
 
@@ -42,7 +49,7 @@ def list_missions():
         statuses = status_param.split(',')
         query = query.filter(Mission.state.in_(statuses))
     
-    missions = query.order_by(Mission.date_debut.desc()).all()
+    missions = query.order_by(Mission.created_at.desc().nulls_last(), Mission.date_debut.desc()).all()
     return jsonify([mission_to_dict(m) for m in missions]), 200
 
 
@@ -65,6 +72,10 @@ def create_mission():
         missing = [f for f in required_fields if f not in data]
         if missing:
             return jsonify({"error": f"Champs manquants: {', '.join(missing)}"}), 400
+
+        # Validation Zone/Numero OM
+        if data.get("zone") == "periferie" and not data.get("numeroOm"):
+             return jsonify({"error": "Le numéro d'OM est obligatoire pour une mission en périphérie"}), 400
 
         # Vérifier que le véhicule existe
         if not Vehicle.query.get(data["vehiculeId"]):
@@ -113,10 +124,77 @@ def create_mission():
             kilometre_parcouru=km_parcouru,
             state=data.get("state", "nouveau"),
             created_by_id=g.user.id if hasattr(g, 'user') else None,
+            titre=data.get("titre"),
+            priorite=data.get("priorite", "Moyenne"),
+            numero_om=data.get("numeroOm"),
+            zone=data.get("zone", "ville"),
+            distance_prevue=float(data.get("distancePrevue") or 0) if data.get("distancePrevue") else None,
+            trajet=data.get("trajet"),
         )
         
         db.session.add(m)
-        db.session.add(m)
+
+        # --- Auto-create Planning Entry ---
+        try:
+            print(f"[PLANNING_SYNC] Starting sync for mission {m.reference}")
+            from datetime import time, timedelta
+            
+            # Flush to ensure m.id is persistent if we need it (though it's already set)
+            db.session.flush()
+            print(f"[PLANNING_SYNC] Mission ID after flush: {m.id}")
+
+            # Helper to combine date and float hour
+            def get_dt(d_obj, h_val):
+                if not d_obj: 
+                    print("[PLANNING_SYNC] WARNING: Date object is missing!")
+                    return datetime.now()
+                h_val = h_val or 0.0
+                hours = int(h_val)
+                minutes = int((h_val - hours) * 60)
+                if hours >= 24: hours = 23; minutes = 59
+                
+                # Ensure d_obj is a date (not datetime)
+                if isinstance(d_obj, datetime):
+                    d_obj = d_obj.date()
+                return datetime.combine(d_obj, time(hours, minutes))
+
+            p_start = get_dt(m.date_debut, m.heure_depart)
+            p_end = get_dt(m.date_fin or m.date_debut, m.heure_retour) 
+            
+            print(f"[PLANNING_SYNC] Calculated Dates: {p_start} to {p_end}")
+
+            # If end is before start, default to 4 hours
+            if p_end <= p_start:
+                 p_end = p_start + timedelta(hours=4)
+
+            planning_description = f"Mission {m.reference}: {m.lieu_depart} -> {m.lieu_destination}"
+            if m.missionnaire:
+                planning_description += f" ({m.missionnaire})"
+
+            print(f"[PLANNING_SYNC] Creating Planning object linked to vehicle {m.vehicule_id}")
+            new_planning = Planning(
+                id=str(uuid.uuid4()),
+                vehicule_id=m.vehicule_id,
+                conducteur_id=m.conducteur_id,
+                date_debut=p_start,
+                date_fin=p_end,
+                type="mission",
+                description=planning_description,
+                status="en_attente",
+                created_by_id=m.created_by_id,
+                mission_id=m.id
+            )
+            db.session.add(new_planning)
+            print(f"[PLANNING_SYNC] SUCCESS: Planning {new_planning.id} added to session for Mission {m.id}")
+            
+        except Exception as e:
+            print(f"[PLANNING_SYNC] ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+            # If sync fails, we still want the mission but maybe the user wants it atomic
+            # For now, let's keep it atomic (re-raising) to be sure it's working or failing loud.
+            raise e
+
         db.session.commit()
 
         # Alerting
@@ -162,6 +240,9 @@ def update_mission(mission_id: str):
 
     data = request.get_json() or {}
 
+    # Capture old state BEFORE updating fields
+    old_state = m.state
+
     # Map API fields to Model fields
     field_mapping = {
         "missionnaire": "missionnaire",
@@ -173,6 +254,12 @@ def update_mission(mission_id: str):
         "kilometrageDepart": "kilometrage_depart",
         "kilometrageRetour": "kilometrage_retour",
         "missionnaireRetour": "missionnaire_retour",
+        "titre": "titre",
+        "priorite": "priorite",
+        "numeroOm": "numero_om",
+        "zone": "zone",
+        "distancePrevue": "distance_prevue",
+        "trajet": "trajet",
     }
     
     for api_field, model_field in field_mapping.items():
@@ -204,8 +291,6 @@ def update_mission(mission_id: str):
     # Recalculate distance
     km_depart = m.kilometrage_depart or 0
     km_retour = m.kilometrage_retour or 0
-    
-    old_state = m.state
 
     if km_retour > km_depart:
         m.kilometre_parcouru = km_retour - km_depart
@@ -217,6 +302,36 @@ def update_mission(mission_id: str):
         
         # Alerting if state changed
         if old_state != m.state:
+             # Automate Vehicle Status Update FIRST
+             # User request: "demarrer(mission) la status du vehicule changer en 'en service/sur terrain'"
+             # "terminer(mission)" -> "en disponible"
+             
+             print(f"[MISSION DEBUG] Status changed from {old_state} to {m.state}")
+             
+             if m.state == 'en_cours':
+                 # Updates vehicle status to 'sur_terrain' (In Service/On Field)
+                 vehicle_to_update = Vehicle.query.get(m.vehicule_id)
+                 print(f"[MISSION DEBUG] Entering 'en_cours' logic. Vehicle: {vehicle_to_update.immatriculation if vehicle_to_update else 'None'}, Current Status: {vehicle_to_update.statut if vehicle_to_update else 'None'}")
+                 if vehicle_to_update:
+                     vehicle_to_update.statut = 'sur_terrain'
+                     db.session.commit()
+                     print(f"[MISSION DEBUG] Vehicle status updated to: sur_terrain")
+                     
+             elif m.state == 'termine':
+                 # Updates vehicle status to 'disponible'
+                 vehicle_to_update = Vehicle.query.get(m.vehicule_id)
+                 print(f"[MISSION DEBUG] Entering 'termine' logic. Vehicle: {vehicle_to_update.immatriculation if vehicle_to_update else 'None'}, Current Status: {vehicle_to_update.statut if vehicle_to_update else 'None'}")
+                 if vehicle_to_update and vehicle_to_update.statut == 'sur_terrain':
+                     vehicle_to_update.statut = 'disponible'
+                     db.session.commit()
+                     print(f"[MISSION DEBUG] Vehicle status updated to: disponible")
+             
+             if m.state in ['annule', 'rejeter']:
+                 Planning.query.filter_by(mission_id=m.id).delete()
+                 db.session.commit()
+                 print(f"[MISSION DEBUG] Associated planning entries deleted for mission {m.id}")
+
+             # Now handle notifications and emails
              try:
                 vehicle = Vehicle.query.get(m.vehicule_id)
                 send_mission_status_notification(m, vehicle)
@@ -248,7 +363,7 @@ def update_mission(mission_id: str):
              
              from ..utils import log_action
              log_action(action="Changement Statut", entite="Mission", entite_id=m.id, details=f"Mission {m.reference} passée à {m.state}")
-                
+                 
         return jsonify(mission_to_dict(m)), 200
     except Exception as e:
         db.session.rollback()
@@ -264,6 +379,9 @@ def delete_mission(mission_id: str):
     user = g.user if hasattr(g, 'user') else None
     if user and user.role not in ['admin', 'technician'] and m.created_by_id != user.id:
         return jsonify({"error": "Vous n'avez pas la permission de supprimer cette mission"}), 403
+
+    # Delete associated planning entries
+    Planning.query.filter_by(mission_id=mission_id).delete()
 
     db.session.delete(m)
     db.session.commit()

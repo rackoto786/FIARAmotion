@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Activity, Plus, Edit, Trash2, CheckCircle, Users, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
 
 const actionIcons: Record<string, React.ElementType> = {
   CREATE: Plus,
@@ -25,9 +26,8 @@ export const RecentActivity: React.FC = () => {
   const { data: logs = [] } = useQuery({
     queryKey: ['recentLogs'],
     queryFn: async () => {
-      const res = await fetch('http://127.0.0.1:5000/api/logs');
-      if (!res.ok) throw new Error('Failed to fetch logs');
-      return res.json();
+      const res = await apiClient.get<any[]>('/logs');
+      return res.data;
     },
   });
 
